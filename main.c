@@ -3,6 +3,9 @@
 #include "aux_function.h"
 #include "list.h"
 
+//correzioni: 
+//1. controlla che in take_from_dir si consideri il path dei file prelevati dalla directory
+
 pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cv = PTHREAD_COND_INITIALIZER;
 
@@ -12,13 +15,13 @@ size_t q_len = 8;
 char* dir_name = NULL;
 size_t delay = 0;
 node* files_list = NULL;
-char* socket_name = NULL;
 size_t queue_capacity = 0;
+int fd_skt;
+t_queue* conc_queue = NULL;
 
 //SEGNALI
 //variables
 volatile sig_atomic_t sig_usr1 = 0;
-volatile sig_atomic_t sig_pipe = 0;
 volatile sig_atomic_t close = 0;
 
 //handlers
@@ -174,79 +177,100 @@ static int parser(int dim, char** array)
 //thread_func
 void* thread_func(void *arg)
 {
-	int fd_c; //diventa nome del file
-	int op;
 	int err;
-	int* buf = NULL;
+	char* buf = NULL;
 
 	while (1){
 		mutex_lock(&mtx, "thread_func: lock fallita");
 		//pop richiesta dalla coda concorrente
-		while (((buf = (int*)dequeue(&conc_queue)) == NULL) && (!sig_int && !sig_quit)){
+		while ( (buf = (int*)dequeue(&conc_queue)) == NULL){
 			if ( (err = pthread_cond_wait(&cv, &mtx)) != 0){
 				LOG_ERR(err, "thread_func: phtread_cond_wait fallita");
 				exit(EXIT_FAILURE);
 			}
 		}
 		mutex_unlock(&mtx, "thread_func: unlock fallita");
-		
-		if(sig_int || sig_quit ){ 	
-			if(buf) free(buf);
-			return NULL;
-		}
-		//salvo il client in fd_c
-		fd_c = *buf;
-      	*buf = 0;
-		//leggi la richiesta di fd_c se fallisce torna 0 al manager
-		if (read(fd_c, buf, sizeof(int)) == -1){
-			LOG_ERR(errno, "thread_func: read su fd_client fallita -> client disconnesso");
-			*buf = 0;
-		}
-		op = *buf;
+	
+		//funzione che opera sul file
+		function(buf);
 
-		printf("\n");
-		printf("(SERVER) - thread_func:		elaborazione nuova richiesta di tipo %d\n", op); //DEBUG
-		//printf("(SERVER) - thread_func: fd_c= %d / op =%d / byte_read=%d\n", fd_c, op, N); //DEBUG
-		
-		//client disconnesso
-		if (op == EOF || op == 0){
-			//fprintf(stderr, "thread_func: client %d disconnesso\n", fd_c);
-			*buf = fd_c;
-			*buf *=(-1);
-			if (write(fd_pipe_write, buf, PIPE_MAX_LEN_MSG) == -1){
-				LOG_ERR(errno, "thread_func: write su pipe fallita");
-			}
-		}
-		
-		//closeFile
-		if( op == 9){
-			if ( worker_closeFile(fd_c) == -1){ 
-				LOG_ERR(errno, "thread_func: (9) worker_closeFile fallita");
-				exit(EXIT_FAILURE);
-			}
-			*buf = fd_c;
-			if (write(fd_pipe_write, buf, PIPE_MAX_LEN_MSG) == -1){
-				LOG_ERR(EPIPE, "thread_func: (9) write su pipe fallita");
-			}
-			tot_requests++;
-		}
 		if(buf) free(buf);
 		buf = NULL;
 	}
 }
 
+static int function(char* file_name)
+{
+	//1. leggere dal disco il contenuto dell'intero file
+	//2. effettuare il calcolo sugli elementi contenuti nel file
+	//3. inviare il risultato al processo collector tramite il socket insieme al nome del file
+
+	FILE *fd;
+  	long int x;
+ 	int res;
+	
+	//apre il file in lettura
+  	fd = fopen(file_name, "r");
+ 	if (fd == NULL) {
+   		perror("Errore in apertura del file");
+   		exit(1);
+  	}
+
+	//dimensione del file
+	struct stat s;
+      if (lstat(file_name, &s) == -1){
+      	LOG_ERR(errno, "lstat");
+      	return -1;
+      }
+	int N = s.st_size / sizeof(long int); //num. long int in un file di s.st_size byte
+	long int result = 0;
+	size_t i = 0;
+	//ciclo di lettura
+	while (N > 0){	
+    		res = fread(&x, sizeof(long int), 1, fd);
+    		if( res != 1 ) break;
+		result = result + (i * x);
+		i++;
+		N--;
+    		printf("%ld\n", x);
+  	}
+
+	//chiude il file
+  	fclose(fd);
+
+	//inviare il risultato al processo collector tramite socket
+	long int* buf;
+
+	//invia: result
+	*buf = result;
+	write(fd_skt, buf, sizeof(long int));
+	//riceve: conferma ricezione
+	read(fd_skt, buf, sizeof(long int));
+	if(buf != 0) return -1;
+
+	//invia: len file name
+	size_t len_s = strlen(file_name);
+	*buf = len_s;
+	write(fd_skt, buf, sizeof(size_t));
+	//riceve: conferma ricezione
+	read(fd_skt, buf, sizeof(long int));
+	if(buf != 0) return -1;
+
+	//invia file name
+	write(fd_skt, file_name, sizeof(char)*len_s);
+	//riceve: conferma ricezione
+	read(fd_skt, buf, sizeof(long int));
+	if(buf != 0) return -1;	
+
+	return 0;
+}
 
 
 static void MasterWorker()
 {
-	///////////////// PIPE SENZA NOME /////////////////
-	int pfd[2];
-	if((err = pipe(pfd)) == -1) { LOG_ERR(errno, "server_manager"); goto main_clean; }
-	fd_pipe_read = pfd[0];
-	fd_pipe_write = pfd[1];
-
-	///////////////// LISTEN SOCKET /////////////////
-   	struct sockaddr_un sa;
+	///////////////// SOCKET /////////////////
+   	char socket_name[8] = {'f', 'a', 'r', 'm', '.', 's', 'c', 'k', '\0'};
+	struct sockaddr_un sa;
 	sa.sun_family = AF_UNIX;
 	size_t N = strlen(socket_name);
 	strncpy(sa.sun_path, socket_name, N);
@@ -299,18 +323,37 @@ static void MasterWorker()
 	///////////////// PROC. COLLECTOR /////////////////
 	//genera il processo collector
 	//scrivere codice e chiamare fork/exec
+	int pid = fork();
+	if (pid == -1){
+		LOG_ERR(errno, "fork()");
+		goto main_clean;
+	execl("/src/collector", "collector.c", (char*)NULL);
+	if( errno != 0 ){
+		LOG_ERR(errno, "execl");
+		goto main_clean;
+	}
 
 
 	///////////////// MAIN LOOP /////////////////
 
-	while(1){
+	while( !close && queue_capacity > 0 ){
+
+		//se si attiva il segnale sigusr1
+		//comunica al processo collector di stampare i risultati ottenuti fino ad ora
+		
+
 		if(!close){
 			mutex_lock(&mtx, "(main) lock fallita");
 			if(queue_capacity < q_len){
-				if(enqueue(&conc_queue, ...) == -1){ 
+				//estrazione del nodo
+				node* temp = extract_node(&files_list);
+				if(enqueue(&conc_queue, temp->str == -1){ 
 					LOG_ERR(-1, "(main) enqueue fallita");
 					goto main_clean; 
 				}
+				//elimino il nodo
+				free(temp->str);
+				free(temp);
 				queue_capacity++;
 			}
 			if ((err = pthread_cond_signal(&cv)) == -1){ 
@@ -337,8 +380,6 @@ static void MasterWorker()
 	//(!) processo collector?
 
 	close(fd_skt);
-	close(fd_pipe_read);
-	close(fd_pipe_write);
 	if(socket_name) free(socket_name);
 	if(files_list) dealloc_list(&files_list);
 	if(conc_queue) dealloc_queue(&conc_queue);
@@ -346,8 +387,6 @@ static void MasterWorker()
 
 	//chiususa server in caso di errore
 	main_clean:
-	close(fd_pipe_read);
-	close(fd_pipe_write);
 	if(socket_name) free(socket_name);
 	if(buf) free(buf);
 	if(files_list) dealloc_list(&files_list);
