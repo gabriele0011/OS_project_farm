@@ -1,6 +1,6 @@
 #include "header_file.h"
 #include "error_ctrl.h"
-#include "aux_function.h"
+#include "aux_thread_func2.h"
 #include "list.h"
 
 //correzioni: 
@@ -8,6 +8,7 @@
 
 pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cv = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t op_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 //global variables
 size_t n_thread = 4;
@@ -18,11 +19,12 @@ node* files_list = NULL;
 size_t queue_capacity = 0;
 int fd_skt;
 t_queue* conc_queue = NULL;
-
+size_t tot_files = 0;
 //SEGNALI
 //variables
 volatile sig_atomic_t sig_usr1 = 0;
 volatile sig_atomic_t close = 0;
+
 
 //handlers
 static void handler_sigquit(int signum){
@@ -47,16 +49,16 @@ static void handler_sigusr1(int signum){
 }
 
 //FUNC
-static int file_check(char* file_name)
+static int file_check(char* path)
 {
       //verifica se è un file regolare
       struct stat s;
-      if (lstat(file_name, &s) == -1){
+      if (lstat(path, &s) == -1){
            //LOG_ERR(errno, "lstat");
             return -1;
       }
       //controllo file regolare
-      if(S_ISREG(s.st_mode) != 0) return 0;
+      if(S_ISREG(s.st_mode) != 0){ tot_files++; return 0; }
       else return -1;
 }
 static void take_from_dir(const char* dirname)
@@ -174,32 +176,32 @@ static int parser(int dim, char** array)
 	return 0;
 }
 
-//thread_func
-void* thread_func(void *arg)
+//thread_func1
+void* thread_func1(void *arg)
 {
 	int err;
 	char* buf = NULL;
 
 	while (1){
-		mutex_lock(&mtx, "thread_func: lock fallita");
+		mutex_lock(&mtx, "thread_func1: lock fallita");
 		//pop richiesta dalla coda concorrente
 		while ( (buf = (int*)dequeue(&conc_queue)) == NULL){
 			if ( (err = pthread_cond_wait(&cv, &mtx)) != 0){
-				LOG_ERR(err, "thread_func: phtread_cond_wait fallita");
+				LOG_ERR(err, "thread_func1: phtread_cond_wait fallita");
 				exit(EXIT_FAILURE);
 			}
 		}
-		mutex_unlock(&mtx, "thread_func: unlock fallita");
+		mutex_unlock(&mtx, "thread_func1: unlock fallita");
 	
 		//funzione che opera sul file
-		function(buf);
+		thread_func2(buf);
 
 		if(buf) free(buf);
 		buf = NULL;
 	}
 }
 
-static int function(char* file_name)
+static int thread_func2(char* path)
 {
 	//1. leggere dal disco il contenuto dell'intero file
 	//2. effettuare il calcolo sugli elementi contenuti nel file
@@ -210,7 +212,7 @@ static int function(char* file_name)
  	int res;
 	
 	//apre il file in lettura
-  	fd = fopen(file_name, "r");
+  	fd = fopen(path, "r");
  	if (fd == NULL) {
    		perror("Errore in apertura del file");
    		exit(1);
@@ -218,7 +220,7 @@ static int function(char* file_name)
 
 	//dimensione del file
 	struct stat s;
-      if (lstat(file_name, &s) == -1){
+      if (lstat(path, &s) == -1){
       	LOG_ERR(errno, "lstat");
       	return -1;
       }
@@ -237,34 +239,55 @@ static int function(char* file_name)
 
 	//chiude il file
   	fclose(fd);
+	if (send_res(result, path) == -1){
+		return -1;
+	}
+	
+	return 0;
+}
 
+static int send_res(long int result, char* path)
+{
 	//inviare il risultato al processo collector tramite socket
+	mutex_lock(&op_mtx, "send_res");
 	long int* buf;
 
+	//invia: operazione
+	*buf = 2;
+	write(fd_skt, buf, sizeof(long int));
+	//riceve: conferma ricezione
+	read(fd_skt, buf, sizeof(long int));
+	if(buf != 0) goto sr_clean;
+	
 	//invia: result
 	*buf = result;
 	write(fd_skt, buf, sizeof(long int));
 	//riceve: conferma ricezione
 	read(fd_skt, buf, sizeof(long int));
-	if(buf != 0) return -1;
+	if(buf != 0) goto sr_clean;
 
 	//invia: len file name
-	size_t len_s = strlen(file_name);
+	size_t len_s = strlen(path);
 	*buf = len_s;
 	write(fd_skt, buf, sizeof(size_t));
 	//riceve: conferma ricezione
 	read(fd_skt, buf, sizeof(long int));
-	if(buf != 0) return -1;
+	if(buf != 0) goto sr_clean;
 
 	//invia file name
-	write(fd_skt, file_name, sizeof(char)*len_s);
+	write(fd_skt, path, sizeof(char)*len_s);
 	//riceve: conferma ricezione
 	read(fd_skt, buf, sizeof(long int));
-	if(buf != 0) return -1;	
-
+	if(buf != 0) goto sr_clean;
+	
+	mutex_unlock(&op_mtx, "send_res");
 	return 0;
-}
 
+	sr_clean:
+	mutex_unlock(&op_mtx, "send_res");
+	return -1;
+
+}
 
 static void MasterWorker()
 {
@@ -284,7 +307,7 @@ static void MasterWorker()
 	///////////////// THREAD POOL  /////////////////
 	pthread_t thread_workers_arr[n_thread];
 	for(int i = 0; i < n_thread; i++){
-		if ((err = pthread_create(&(thread_workers_arr[i]), NULL, thread_func, NULL)) != 0){    
+		if ((err = pthread_create(&(thread_workers_arr[i]), NULL, thread_func1, NULL)) != 0){    
 			LOG_ERR(err, "pthread_create in server_manager");
 			goto main_clean;
 		}
@@ -333,15 +356,18 @@ static void MasterWorker()
 		goto main_clean;
 	}
 
+	//potrei gia comunicare al collector quanti file ci saranno da esaminare
 
 	///////////////// MAIN LOOP /////////////////
-
 	while( !close && queue_capacity > 0 ){
 
-		//se si attiva il segnale sigusr1
-		//comunica al processo collector di stampare i risultati ottenuti fino ad ora
-		
-
+		if (sig_usr1){
+			//notificare al processo collector di stampare i risultati ottenuti fino ad ora
+			*buf = 1;
+			write(fd_skt, buf, sizeof(long int));
+			read(fd_skt, buf, sizeof(long int));
+			if(*buf != 0 ) goto main_clean;
+		}
 		if(!close){
 			mutex_lock(&mtx, "(main) lock fallita");
 			if(queue_capacity < q_len){
