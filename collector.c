@@ -7,11 +7,20 @@ typedef struct _elem{
       long int res;
 }elem;
 
+int fd_skt;
 
 int main()
 {
-      char socket_name[8] = {'f', 'a', 'r', 'm', '.', 's', 'c', 'k', '\0'};
-      //socket
+      long int* buf = NULL;
+      elem arr[tot_files]; //array che conterrà tutti i risultati
+      int i = 0;
+      int j = tot_files;
+
+
+
+     	char socket_name[8];
+	strcpy(socket_name, "farm.sck");
+	socket_name[7] = '\0';
       struct sockaddr_un sa;
 	size_t len_sockname =  strlen(sockname);
 	memset((void*)sa.sun_path, '\0', len_sockname);
@@ -20,11 +29,11 @@ int main()
 
       printf("socket name: %s\n", socket_name);
     
-	if ((fd_sk = socket(AF_UNIX, SOCK_STREAM, 0)) == -1){
+	if ((fd_skt = socket(AF_UNIX, SOCK_STREAM, 0)) == -1){
             LOG_ERR(errno, "socket()");
             return -1;
       }
-      if (connect(fd_sk, (struct sockaddr*)&sa, sizeof(sa)) == -1){
+      if (connect(fd_skt, (struct sockaddr*)&sa, sizeof(sa)) == -1){
             LOG_ERR(errno, "(collector) connect");
             exit(EXIT_FAILURE);
       }
@@ -39,11 +48,6 @@ int main()
       //s5.sa_handler = SIG_IGN;
 
 
-	long int* buf;
-
-      elem arr[tot_files]; //array che conterrà tutti i risultati
-      int i = 0;
-      int j = tot_files;
 
       while(j > 0){
             //riceve: operazione
@@ -60,7 +64,7 @@ int main()
             }
 
             //ricezione di un nuovo risultato+path
-            if(*buf = 2){
+            if(*buf == 2){
                   //riceve: risultato
                   long int result;
 	            read(fd_skt, buf, sizeof(long int));

@@ -3,13 +3,16 @@
 
 pthread_mutex_t mtx1 = PTHREAD_MUTEX_INITIALIZER;
 
-int enqueue(t_queue** queue, int data)
+int enqueue(t_queue** queue, char* string)
 {
 	//creazione nuovo nodo + setting
 	t_queue* new;
 	ec_null_r((new = malloc(sizeof(t_queue))), "cache: malloc cache_writeFile fallita", -1);
 	new->next = NULL;
-	new->data = data;
+	size_t len_str = strlen(string);
+	new->data = calloc(len_str, sizeof(char));
+	strncpy(new->data, string, len_str);
+	(new->data)[len_str] = '\0';
 	
 	if (pthread_mutex_init(&(new->mtx), NULL) != 0){
 		LOG_ERR(errno, "cache: pthread_mutex_init fallita in cache_create_file");
@@ -39,7 +42,7 @@ int enqueue(t_queue** queue, int data)
 	return 0;
 }
 
-int* dequeue(t_queue** queue)
+char* dequeue(t_queue** queue)
 {
 	mutex_lock(&mtx1, "cache: lock fallita in cache_enqueue");
 	//caso 1: cache vuota
@@ -53,11 +56,14 @@ int* dequeue(t_queue** queue)
 		t_queue* aux = *queue;
 		*queue = NULL;
 		mutex_unlock((&mtx1), "cache: unlock fallita in cache_enqueue");
-		int* n = malloc(sizeof(int));
-		*n = aux->data;
+		size_t len_s = strlen(aux->data);
+		char* s = calloc(len_s, sizeof(char));
+		strncpy(s, aux->data, len_s);
+		s[len_s] = '\0';
 		pthread_mutex_destroy(&aux->mtx);
+		free(aux->data);
 		free(aux);
-		return n;
+		return s;
 	}
 	mutex_unlock(&mtx1, "cache: unlock fallita in cache_enqueue");
 
@@ -78,20 +84,22 @@ int* dequeue(t_queue** queue)
 
 	}
 	prev->next = NULL;
-	int* n = malloc(sizeof(int));
-	*n = curr->data;
+	size_t len_s = strlen(aux->data);
+	char* s = calloc(len_s, sizeof(char));
+	strncpy(s, curr->data, len_s);
+	s[len_s] = '\0';
 	mutex_unlock(&(prev->mtx), "cache: unlock fallita in cache_enqueue");
 	mutex_unlock(&(curr->mtx), "cache: unlock fallita in cache_enqueue");
 	pthread_mutex_destroy(&curr->mtx);
 	free(curr);
-	return n;
+	return s;
 }
 
 void printf_queue(t_queue* queue)
 {	
 	mutex_lock(&mtx1, "cache: lock fallita in cache_enqueue");
 	while(queue != NULL){
-		printf("%d ", queue->data);
+		printf("%s ", queue->data);
 		queue = queue->next;
 	}
 	mutex_unlock(&mtx1, "cache: unlock fallita in cache_enqueue");
@@ -113,6 +121,7 @@ void dealloc_queue(t_queue** queue)
 	while(curr != NULL){
 		t_queue* temp = curr;
 		curr = curr->next;
+		free(temp->data);
 		free(temp);
 	}
 	*queue = NULL;

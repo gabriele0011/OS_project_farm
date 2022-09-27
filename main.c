@@ -1,7 +1,8 @@
 #include "header_file.h"
 #include "error_ctrl.h"
-#include "aux_thread_func2.h"
+#include "aux_function.h"
 #include "list.h"
+#include "conc_queue.h"
 
 //correzioni: 
 //1. controlla che in take_from_dir si consideri il path dei file prelevati dalla directory
@@ -23,24 +24,24 @@ size_t tot_files = 0;
 //SEGNALI
 //variables
 volatile sig_atomic_t sig_usr1 = 0;
-volatile sig_atomic_t close = 0;
+volatile sig_atomic_t closing = 0;
 
 
 //handlers
 static void handler_sigquit(int signum){
-	close = 1;
+	closing = 1;
 	return;
 }
 static void handler_sigint(int signum){
-	close = 1;
+	closing = 1;
 	return;
 }
 static void handler_sighup(int signum){
-	close = 1;
+	closing = 1;
 	return;
 }
 static void handler_sigterm(int signum){
-	close = 1;
+	closing = 1;
 	return;
 }
 static void handler_sigusr1(int signum){
@@ -104,7 +105,7 @@ static int parser(int dim, char** array)
             //CASO -n <_>
 		if (is_opt(array[i], "-n")){
 			if (is_argument(array[i+1])){
-                        if ((_ = is_number(array[++i])) == -1){
+                        if ((n_thread = is_number(array[++i])) == -1){
 				      LOG_ERR(EINVAL, "(main) argomento -n non numerico");
 				      return -1;
                         }
@@ -112,7 +113,7 @@ static int parser(int dim, char** array)
                         LOG_ERR(EINVAL, "(main) argomento -n mancante");
 				return -1;
                   }
-			printf("DEBUG _ = %zu\n", _); //DEBUG
+			printf("DEBUG _ = %zu\n", n_thread); //DEBUG
                   //i++;
 		}
 
@@ -176,31 +177,48 @@ static int parser(int dim, char** array)
 	return 0;
 }
 
-//thread_func1
-void* thread_func1(void *arg)
+static int send_res(long int result, char* path)
 {
-	int err;
-	char* buf = NULL;
+	//inviare il risultato al processo collector tramite socket
+	mutex_lock(&op_mtx, "send_res");
+	long int* buf = NULL;
 
-	while (1){
-		mutex_lock(&mtx, "thread_func1: lock fallita");
-		//pop richiesta dalla coda concorrente
-		while ( (buf = (int*)dequeue(&conc_queue)) == NULL){
-			if ( (err = pthread_cond_wait(&cv, &mtx)) != 0){
-				LOG_ERR(err, "thread_func1: phtread_cond_wait fallita");
-				exit(EXIT_FAILURE);
-			}
-		}
-		mutex_unlock(&mtx, "thread_func1: unlock fallita");
+	//invia: operazione
+	*buf = 2;
+	write(fd_skt, buf, sizeof(long int));
+	//riceve: conferma ricezione
+	read(fd_skt, buf, sizeof(long int));
+	if(buf != 0) goto sr_clean;
 	
-		//funzione che opera sul file
-		thread_func2(buf);
+	//invia: result
+	*buf = result;
+	write(fd_skt, buf, sizeof(long int));
+	//riceve: conferma ricezione
+	read(fd_skt, buf, sizeof(long int));
+	if(buf != 0) goto sr_clean;
 
-		if(buf) free(buf);
-		buf = NULL;
-	}
+	//invia: len file name
+	size_t len_s = strlen(path);
+	*buf = len_s;
+	write(fd_skt, buf, sizeof(size_t));
+	//riceve: conferma ricezione
+	read(fd_skt, buf, sizeof(long int));
+	if(buf != 0) goto sr_clean;
+
+	//invia file name
+	write(fd_skt, path, sizeof(char)*len_s);
+	//riceve: conferma ricezione
+	read(fd_skt, buf, sizeof(long int));
+	if(buf != 0) goto sr_clean;
+	
+	mutex_unlock(&op_mtx, "send_res");
+	return 0;
+
+	sr_clean:
+	mutex_unlock(&op_mtx, "send_res");
+	return -1;
+
 }
-
 static int thread_func2(char* path)
 {
 	//1. leggere dal disco il contenuto dell'intero file
@@ -245,54 +263,49 @@ static int thread_func2(char* path)
 	
 	return 0;
 }
-
-static int send_res(long int result, char* path)
+void* thread_func1(void *arg)
 {
-	//inviare il risultato al processo collector tramite socket
-	mutex_lock(&op_mtx, "send_res");
-	long int* buf;
+	int err;
+	char* buf = NULL;
 
-	//invia: operazione
-	*buf = 2;
-	write(fd_skt, buf, sizeof(long int));
-	//riceve: conferma ricezione
-	read(fd_skt, buf, sizeof(long int));
-	if(buf != 0) goto sr_clean;
+	while (1){
+		mutex_lock(&mtx, "thread_func1: lock fallita");
+		//pop richiesta dalla coda concorrente
+		while ((buf = (char*)dequeue(&conc_queue)) == NULL){
+			if ( (err = pthread_cond_wait(&cv, &mtx)) != 0){
+				LOG_ERR(err, "thread_func1: phtread_cond_wait fallita");
+				exit(EXIT_FAILURE);
+			}
+		}
+		mutex_unlock(&mtx, "thread_func1: unlock fallita");
 	
-	//invia: result
-	*buf = result;
-	write(fd_skt, buf, sizeof(long int));
-	//riceve: conferma ricezione
-	read(fd_skt, buf, sizeof(long int));
-	if(buf != 0) goto sr_clean;
+		//funzione che opera sul file
+		thread_func2(buf);
 
-	//invia: len file name
-	size_t len_s = strlen(path);
-	*buf = len_s;
-	write(fd_skt, buf, sizeof(size_t));
-	//riceve: conferma ricezione
-	read(fd_skt, buf, sizeof(long int));
-	if(buf != 0) goto sr_clean;
-
-	//invia file name
-	write(fd_skt, path, sizeof(char)*len_s);
-	//riceve: conferma ricezione
-	read(fd_skt, buf, sizeof(long int));
-	if(buf != 0) goto sr_clean;
-	
-	mutex_unlock(&op_mtx, "send_res");
-	return 0;
-
-	sr_clean:
-	mutex_unlock(&op_mtx, "send_res");
-	return -1;
-
+		if(buf) free(buf);
+		buf = NULL;
+	}
 }
+
 
 static void MasterWorker()
 {
+	int err;
+	long int *buf = NULL;
+
+	///////////////// THREAD POOL  /////////////////
+	pthread_t thread_workers_arr[n_thread];
+	for(int i = 0; i < n_thread; i++){
+		if ((err = pthread_create(&(thread_workers_arr[i]), NULL, thread_func1, NULL)) != 0){    
+			LOG_ERR(err, "pthread_create in server_manager");
+			goto main_clean;
+		}
+	}
+
 	///////////////// SOCKET /////////////////
-   	char socket_name[8] = {'f', 'a', 'r', 'm', '.', 's', 'c', 'k', '\0'};
+   	char socket_name[8];
+	strcpy(socket_name, "farm.sck");
+	socket_name[7] = '\0';
 	struct sockaddr_un sa;
 	sa.sun_family = AF_UNIX;
 	size_t N = strlen(socket_name);
@@ -304,15 +317,6 @@ static void MasterWorker()
 	ec_meno1_c(listen(fd_skt, SOMAXCONN), "(main) listen fallita", main_clean);
 	printf("socket_name:%s\n", socket_name);
 	
-	///////////////// THREAD POOL  /////////////////
-	pthread_t thread_workers_arr[n_thread];
-	for(int i = 0; i < n_thread; i++){
-		if ((err = pthread_create(&(thread_workers_arr[i]), NULL, thread_func1, NULL)) != 0){    
-			LOG_ERR(err, "pthread_create in server_manager");
-			goto main_clean;
-		}
-	}
-
 	///////////////// SEGNALI /////////////////
 	struct sigaction s;
 	memset(&s, 0, sizeof(struct sigaction));
@@ -346,20 +350,22 @@ static void MasterWorker()
 	///////////////// PROC. COLLECTOR /////////////////
 	//genera il processo collector
 	//scrivere codice e chiamare fork/exec
+	printf("genera processo collector...\n");
 	int pid = fork();
 	if (pid == -1){
 		LOG_ERR(errno, "fork()");
 		goto main_clean;
+	}
+	printf("genera processo collector...\n");
 	execl("/src/collector", "collector.c", (char*)NULL);
+	
 	if( errno != 0 ){
 		LOG_ERR(errno, "execl");
 		goto main_clean;
 	}
 
-	//potrei gia comunicare al collector quanti file ci saranno da esaminare
-
 	///////////////// MAIN LOOP /////////////////
-	while( !close && queue_capacity > 0 ){
+	while( !closing && queue_capacity > 0 ){
 
 		if (sig_usr1){
 			//notificare al processo collector di stampare i risultati ottenuti fino ad ora
@@ -368,12 +374,12 @@ static void MasterWorker()
 			read(fd_skt, buf, sizeof(long int));
 			if(*buf != 0 ) goto main_clean;
 		}
-		if(!close){
+		if (!closing){
 			mutex_lock(&mtx, "(main) lock fallita");
-			if(queue_capacity < q_len){
+			if (queue_capacity < q_len){
 				//estrazione del nodo
 				node* temp = extract_node(&files_list);
-				if(enqueue(&conc_queue, temp->str == -1){ 
+				if (enqueue(&conc_queue, temp->str) == -1){ 
 					LOG_ERR(-1, "(main) enqueue fallita");
 					goto main_clean; 
 				}
@@ -397,7 +403,7 @@ static void MasterWorker()
 	mutex_unlock(&mtx, "(main) unlock fallita");
 
 	//chiusura server normale
-	for (int i = 0; i < t_workers_num; i++) {
+	for (int i = 0; i < n_thread; i++) {
 		if ((err = pthread_join(thread_workers_arr[i], NULL)) == -1){
         		LOG_ERR(err, "(main) pthread_join fallita");
       			goto main_clean;
@@ -406,14 +412,14 @@ static void MasterWorker()
 	//(!) processo collector?
 
 	close(fd_skt);
-	if(socket_name) free(socket_name);
+	//if(socket_name) free(socket_name);
 	if(files_list) dealloc_list(&files_list);
 	if(conc_queue) dealloc_queue(&conc_queue);
 	exit(EXIT_SUCCESS);
 
 	//chiususa server in caso di errore
 	main_clean:
-	if(socket_name) free(socket_name);
+	//if(socket_name) free(socket_name);
 	if(buf) free(buf);
 	if(files_list) dealloc_list(&files_list);
 	if(conc_queue) dealloc_queue(&conc_queue);
