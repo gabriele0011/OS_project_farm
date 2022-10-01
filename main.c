@@ -62,6 +62,7 @@ static int file_check(char* path)
       if(S_ISREG(s.st_mode) != 0){ tot_files++; return 0; }
       else return -1;
 }
+
 static void take_from_dir(const char* dirname)
 {
 	//passo 1: apertura dir
@@ -89,7 +90,7 @@ static void take_from_dir(const char* dirname)
 		}else{
 			//printf("take_from_dir su %s\n", path); DEBUG
 			if(file_check(path) != -1)
-                        insert_node(&files_list, path);
+            	insert_node(&files_list, path);
 		}
 	}
 	//chiudere la directory
@@ -98,41 +99,41 @@ static void take_from_dir(const char* dirname)
 }
 static int parser(int dim, char** array)
 {		
-      dir_name = NULL;
-      //CICLO PARSING: si gestiscono i comandi di setting del server -n, -q, -d, -t + lista di files
+    dir_name = NULL;
+    //CICLO PARSING: si gestiscono i comandi di setting del server -n, -q, -d, -t + lista di files
 	int i = 0;
 	while (++i < dim){
-            //CASO -n <_>
+        //CASO -n <_>
 		if (is_opt(array[i], "-n")){
 			if (is_argument(array[i+1])){
-                        if ((n_thread = is_number(array[++i])) == -1){
-				      LOG_ERR(EINVAL, "(main) argomento -n non numerico");
-				      return -1;
-                        }
+                if ((n_thread = is_number(array[++i])) == -1){
+				    LOG_ERR(EINVAL, "(main) argomento -n non numerico");
+				    return -1;
+             	}
 			}else{
-                        LOG_ERR(EINVAL, "(main) argomento -n mancante");
+                LOG_ERR(EINVAL, "(main) argomento -n mancante");
 				return -1;
-                  }
+            }
 			printf("DEBUG _ = %zu\n", n_thread); //DEBUG
-                  //i++;
+            //i++;
 		}
 
-            //CASO -q <qlen>
+        //CASO -q <qlen>
 		if (is_opt(array[i], "-q")){
 			if (is_argument(array[i+1])){
-                        if ((q_len = is_number(array[++i])) == -1){
-				      LOG_ERR(EINVAL, "(main) argomento -q non numerico");
-				      return -1;
-                        }
-                  }else{
-                        LOG_ERR(EINVAL, "(main) argomento -q mancante");
+                if ((q_len = is_number(array[++i])) == -1){
+				    LOG_ERR(EINVAL, "(main) argomento -q non numerico");
+				    return -1;
+                }
+            }else{
+                LOG_ERR(EINVAL, "(main) argomento -q mancante");
 				return -1;
-                  }
-		      printf("DEBUG q_len = %zu\n", q_len); //DEBUG
-                  //i++;
+            }
+		    printf("DEBUG q_len = %zu\n", q_len); //DEBUG
+            //i++;
 		}
             
-            //CASO -d <directory_name>
+        //CASO -d <directory_name>
 		if (is_opt(array[i], "-d")){
 			//argomento obbligatorio
 			if (is_argument(array[i+1])) 
@@ -141,38 +142,39 @@ static int parser(int dim, char** array)
 				LOG_ERR(EINVAL, "(main) argomento -d mancante");
 				return -1;
 			}
-                  printf("DEBUG: dir_name = %s\n", dir_name); //DEBUG
-                  //i++;
+            printf("DEBUG: dir_name = %s\n", dir_name); //DEBUG
+            //i++;
 		}
 		
 		//CASO -t <delay>
 		if (is_opt(array[i], "-t")){
 			if (is_argument(array[i+1])){
-                        if ((delay = is_number(array[++i])) == -1){
-				      LOG_ERR(EINVAL, "(main) argomento -t non numerico");
-				      return -1;
-                        }
+                if ((delay = is_number(array[++i])) == -1){
+				    LOG_ERR(EINVAL, "(main) argomento -t non numerico");
+				    return -1;
+                }
 			}else{
-                  	LOG_ERR(EINVAL, "(main) argomento -t mancante");
+                LOG_ERR(EINVAL, "(main) argomento -t mancante");
 				return -1;
 			}
-		      printf("DEBUG: delay = %zu\n", delay); //DEBUG
-                  //i++;
+		    printf("DEBUG: delay = %zu\n", delay); //DEBUG
+            //i++;
 		}
 
-            //CASO lista di file
-            if (file_check(array[i]) != -1)
-                  insert_node(&files_list, array[i]);
+        //CASO lista di file
+		if (file_check(array[i]) != -1)
+    		insert_node(&files_list, array[i]);
 	}
-      //controllo dipendenze
-      if (files_list == NULL && dir_name == NULL){
-            LOG_ERR(EINVAL, "(main) nessun file in input");
-            return -1;
-      }
 
-      if(dir_name != NULL) take_from_dir(dir_name);
+	//controllo dipendenze
+    if (files_list == NULL && dir_name == NULL){
+    	LOG_ERR(EINVAL, "(main) nessun file in input");
+    	return -1;
+    }
+
+    if(dir_name != NULL) take_from_dir(dir_name);
 	printf("DEBUG - lista dei file acquisiti\n"); //DEBUG
-      print_list(files_list); //DEBUG
+    print_list(files_list); //DEBUG
 	
 	return 0;
 }
@@ -291,7 +293,8 @@ void* thread_func1(void *arg)
 static void MasterWorker()
 {
 	int err;
-	long int *buf = NULL;
+	long int* buf = NULL;
+	buf = (long int*)malloc(sizeof(long int));
 
 	///////////////// THREAD POOL  /////////////////
 	pthread_t thread_workers_arr[n_thread];
@@ -302,21 +305,6 @@ static void MasterWorker()
 		}
 	}
 
-	///////////////// SOCKET /////////////////
-   	char socket_name[8];
-	strcpy(socket_name, "farm.sck");
-	socket_name[7] = '\0';
-	struct sockaddr_un sa;
-	sa.sun_family = AF_UNIX;
-	size_t N = strlen(socket_name);
-	strncpy(sa.sun_path, socket_name, N);
-	sa.sun_path[N] = '\0';
-   	//socket/bind/listen
-	ec_meno1_c((fd_skt = socket(AF_UNIX, SOCK_STREAM, 0)), "(main) socket fallita", main_clean);
-	ec_meno1_c(bind(fd_skt, (struct sockaddr*)&sa, sizeof(sa)), "(main) bind fallita", main_clean);
-	ec_meno1_c(listen(fd_skt, SOMAXCONN), "(main) listen fallita", main_clean);
-	printf("socket_name:%s\n", socket_name);
-	
 	///////////////// SEGNALI /////////////////
 	struct sigaction s;
 	memset(&s, 0, sizeof(struct sigaction));
@@ -335,34 +323,79 @@ static void MasterWorker()
 
 	struct sigaction s3;
 	memset(&s3, 0, sizeof(struct sigaction));
-	s2.sa_handler = handler_sigterm;
+	s3.sa_handler = handler_sigterm;
 	ec_meno1_c(sigaction(SIGTERM, &s3, NULL), "(main) sigaction fallita", main_clean);  
 
 	struct sigaction s4;
 	memset(&s4, 0, sizeof(struct sigaction));
-	s2.sa_handler = handler_sigusr1;
+	s4.sa_handler = handler_sigusr1;
 	ec_meno1_c(sigaction(SIGUSR1, &s4, NULL), "(main) sigaction fallita", main_clean);
 
 	struct sigaction s5;
 	memset(&s5, 0, sizeof(struct sigaction));
-	s5.sa_handler = SIG_IGN;
-
+	s5.sa_handler = SIG_IGN;      
+	
+	///////////////// SOCKET /////////////////
+   	char socket_name[9];
+	strcpy(socket_name, "farm.sck");
+	socket_name[8] = '\0';
+	struct sockaddr_un sa;
+	sa.sun_family = AF_UNIX;
+	size_t N = strlen(socket_name);
+	strncpy(sa.sun_path, socket_name, N);
+	sa.sun_path[N] = '\0';
+   	//socket/bind/listen
+	ec_meno1_c((fd_skt = socket(AF_UNIX, SOCK_STREAM, 0)), "(main) socket fallita", main_clean);
+	ec_meno1_c(bind(fd_skt, (struct sockaddr*)&sa, sizeof(sa)), "(main) bind fallita", main_clean);
+	ec_meno1_c(listen(fd_skt, SOMAXCONN), "(main) listen fallita", main_clean);
+	
 	///////////////// PROC. COLLECTOR /////////////////
-	//genera il processo collector
-	//scrivere codice e chiamare fork/exec
-	printf("genera processo collector...\n");
-	int pid = fork();
-	if (pid == -1){
+	pid_t pid = fork();
+	if (pid < 0){ //fork 1 fallita
 		LOG_ERR(errno, "fork()");
 		goto main_clean;
+	}else{
+		if(pid == 0 ){ //proc. figlio 1
+			setsid();
+			pid_t pid2 = fork();
+			if (pid2 < 0){ //fork 2 fallita
+				LOG_ERR(errno, "fork()");
+				goto main_clean;
+			}else{ 
+				if (pid2 > 0) //proc. genitore 2 
+					exit(0); //termino genitore 2 -> figlio 2 orfano 
+				else{	//proc. figlio 2
+					//if (close(0) == -1){ LOG_ERR(errno, "(main) close stdin"); goto main_clean; }
+					//if (close(1) == -1){ LOG_ERR(errno, "(main) close stdout"); goto main_clean; }
+					//if (close(2) == -1){ LOG_ERR(errno, "(main) close stderr"); goto main_clean; }
+					//umask(0);
+					//chdir("/");
+					printf("(main) exec - differenziazione in corso\n");
+					execl("./collector", "collector", (char*)NULL); //-> puoi inserire gli argomenti necessari da esportare
+					LOG_ERR(errno, "execl");
+					goto main_clean;
+				}
+			}
+		}else{ //proc. genitore 1
+			printf("(main) processo genitore\n");
+			//exit(0);
+			printf("processo 1 - pid=%d\n", getpid());
+		}
 	}
-	printf("genera processo collector...\n");
-	execl("/src/collector", "collector.c", (char*)NULL);
-	
-	if( errno != 0 ){
-		LOG_ERR(errno, "execl");
-		goto main_clean;
-	}
+	int fd;
+	ec_meno1_c((fd = accept(fd_skt, NULL, 0)), "(main) accept fallita", main_clean);
+	printf("(main) socket: %s - attivo\n", socket_name);
+
+	printf("(main) BUG HERE?\n");
+
+	//invia tot_files a collector
+	*buf = tot_files;
+	printf("(main) *buf = %ld\n", *buf);
+	int n; //conta byte inviati
+	if( (n = write(fd, buf, sizeof(size_t))) == -1) { LOG_ERR(errno, "(main) write"); goto main_clean; }
+	printf("(main) byte inviati = %d\n", n);
+	read(fd, buf, sizeof(long int));
+	if(*buf != 0 ) goto main_clean;
 
 	///////////////// MAIN LOOP /////////////////
 	while( !closing && queue_capacity > 0 ){
@@ -370,8 +403,8 @@ static void MasterWorker()
 		if (sig_usr1){
 			//notificare al processo collector di stampare i risultati ottenuti fino ad ora
 			*buf = 1;
-			write(fd_skt, buf, sizeof(long int));
-			read(fd_skt, buf, sizeof(long int));
+			write(fd, buf, sizeof(long int));
+			read(fd, buf, sizeof(long int));
 			if(*buf != 0 ) goto main_clean;
 		}
 		if (!closing){
@@ -395,7 +428,6 @@ static void MasterWorker()
 			mutex_unlock(&mtx, "(main) unlock fallita");
 		}
 	}
-
 
 	///////////////// TERMINAZIONE /////////////////
 	mutex_lock(&mtx, "(main) lock fallita");
@@ -429,11 +461,11 @@ static void MasterWorker()
 
 int main(int argc, char* argv[])
 {
-      //parsing
-      if (parser(argc, argv) == -1){
-            exit(EXIT_FAILURE);
-      }
-      //master worker
-      MasterWorker();
-      return 0;
+	//parsing
+    if (parser(argc, argv) == -1){
+    	exit(EXIT_FAILURE);
+    }
+    //master worker
+	MasterWorker();
+    return 0;
 }

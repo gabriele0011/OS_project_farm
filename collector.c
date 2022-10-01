@@ -2,6 +2,7 @@
 #include "error_ctrl.h"
 #include "aux_function.h"
 
+
 typedef struct _elem{
       char path[255];
       long int res;
@@ -11,43 +12,87 @@ int fd_skt;
 
 int main()
 {
+      printf("(collector) SONO NATO! pid=%d\n", getpid());
       long int* buf = NULL;
-      elem arr[tot_files]; //array che conterrà tutti i risultati
+	buf = (long int*)malloc(sizeof(long int));
       int i = 0;
-      int j = tot_files;
 
+      ///////////////// SEGNALI /////////////////
+      struct sigaction s;
+	memset(&s, 0, sizeof(struct sigaction));
+      s.sa_handler = SIG_IGN;
+	ec_meno1_c(sigaction(SIGINT, &s, NULL), "(main) sigaction fallita", main_clean);
+	
+	struct sigaction s1;
+	memset(&s1, 0, sizeof(struct sigaction));
+      s1.sa_handler = SIG_IGN;
+	if (sigaction(SIGQUIT, &s1, NULL)  == -1){
+            LOG_ERR(errno, "(main) sigaction fallita");
+            goto main_clean;
+      }
 
+      //ec_meno1_c(sigaction(SIGQUIT, &s1, NULL), "(main) sigaction fallita", main_clean);
+	
+	struct sigaction s2;
+	memset(&s2, 0, sizeof(struct sigaction));
+      s2.sa_handler = SIG_IGN;
+	ec_meno1_c(sigaction(SIGHUP, &s2, NULL), "(main) sigaction fallita", main_clean); 
 
-     	char socket_name[8];
+	struct sigaction s3;
+	memset(&s3, 0, sizeof(struct sigaction));
+      s3.sa_handler = SIG_IGN;
+	ec_meno1_c(sigaction(SIGTERM, &s3, NULL), "(main) sigaction fallita", main_clean);  
+
+	struct sigaction s4;
+	memset(&s4, 0, sizeof(struct sigaction));
+      s4.sa_handler = SIG_IGN;
+	ec_meno1_c(sigaction(SIGUSR1, &s4, NULL), "(main) sigaction fallita", main_clean);
+
+	struct sigaction s5;
+	memset(&s5, 0, sizeof(struct sigaction));
+	s5.sa_handler = SIG_IGN;
+    
+      
+      ///////////////// SOCKET /////////////////
+	char socket_name[9];
 	strcpy(socket_name, "farm.sck");
-	socket_name[7] = '\0';
+	socket_name[8] = '\0';
       struct sockaddr_un sa;
-	size_t len_sockname =  strlen(sockname);
+	size_t len_sockname =  strlen(socket_name);
 	memset((void*)sa.sun_path, '\0', len_sockname);
-	strncpy(sa.sun_path, sockname, len_sockname);
+	strncpy(sa.sun_path, socket_name, len_sockname);
 	sa.sun_family = AF_UNIX;
-
-      printf("socket name: %s\n", socket_name);
     
 	if ((fd_skt = socket(AF_UNIX, SOCK_STREAM, 0)) == -1){
             LOG_ERR(errno, "socket()");
-            return -1;
+            goto main_clean;
       }
       if (connect(fd_skt, (struct sockaddr*)&sa, sizeof(sa)) == -1){
-            LOG_ERR(errno, "(collector) connect");
-            exit(EXIT_FAILURE);
+	    LOG_ERR(errno, "(collector) connect");
+          goto main_clean;
       }
-      
-      //gestione dei segnali -> ignora tutti -> 
-      //gli handler sono reimpostati a default dopo la execl tranne quelli ignorati
-      s.sa_handler = SIG_IGN;
-      s1.sa_handler = SIG_IGN;
-      s2.sa_handler = SIG_IGN;
-      s3.sa_handler = SIG_IGN;
-      s4.sa_handler = SIG_IGN;
-      //s5.sa_handler = SIG_IGN;
+      printf("(collector) socket: %s - attivo\n", socket_name);
 
 
+      size_t tot_files = 0;
+      printf("(collector) ricevo tot_files=%zu\n", tot_files);
+      //riceve: tot_files
+      int n;
+      printf("BUG HERE\n");
+	n = read(fd_skt, buf, sizeof(size_t));
+      printf("(collector) byte letti=%d\n", n);
+      tot_files = *buf;
+      //invia: conferma ricezione
+      *buf = 0;
+	write(fd_skt, buf, sizeof(long int));
+      printf("(collector) BUG HERE\n");
+      printf("(collector) ho ricevuto tot_files=%ld\n", tot_files);
+
+      //elem arr[tot_files]; //array che conterra tutti i risultati
+      elem* arr = NULL;
+      arr = (elem*)calloc(sizeof(elem), tot_files);
+
+      int j = tot_files;
 
       while(j > 0){
             //riceve: operazione
@@ -96,6 +141,10 @@ int main()
                   i++; j--;
             }
       }
-
+      if(buf) free(buf);
       return 0;
+      
+      main_clean:
+      if(buf) free(buf);
+      return -1;
 }
