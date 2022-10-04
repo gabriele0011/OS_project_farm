@@ -73,19 +73,15 @@ int main()
       }
       printf("(collector) socket: %s - attivo\n", socket_name);
 
-
       size_t tot_files = 0;
-      printf("(collector) ricevo tot_files=%zu\n", tot_files);
       //riceve: tot_files
       int n;
-      printf("BUG HERE\n");
 	n = read(fd_skt, buf, sizeof(size_t));
-      printf("(collector) byte letti=%d\n", n);
+      //printf("(collector) byte letti=%d\n", n);
       tot_files = *buf;
       //invia: conferma ricezione
       *buf = 0;
 	write(fd_skt, buf, sizeof(long int));
-      printf("(collector) BUG HERE\n");
       printf("(collector) ho ricevuto tot_files=%ld\n", tot_files);
 
       //elem arr[tot_files]; //array che conterra tutti i risultati
@@ -94,12 +90,14 @@ int main()
 
       int j = tot_files;
 
+      //printf("(collector) BUG HERE\n");
       while(j > 0){
             //riceve: operazione
             read(fd_skt, buf, sizeof(long int));
 
             //stampa i risultati fino a questo istante
             if (*buf == 1){
+                  printf("(collector) stampo risultati attuali\n");
                   //MUTEX
                   //ordina array
                   //stampa array fino al j esimo
@@ -110,6 +108,7 @@ int main()
 
             //ricezione di un nuovo risultato+path
             if(*buf == 2){
+                  printf("(collector) ricevo un risultato\n");
                   //riceve: risultato
                   long int result;
 	            read(fd_skt, buf, sizeof(long int));

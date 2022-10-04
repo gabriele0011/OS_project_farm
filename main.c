@@ -181,11 +181,12 @@ static int parser(int dim, char** array)
 
 static int send_res(long int result, char* path)
 {
+	printf("(send_res)\n");
 	//inviare il risultato al processo collector tramite socket
 	mutex_lock(&op_mtx, "send_res");
 	long int* buf = NULL;
 
-	//invia: operazione
+	//invia: tipo operazione 2=invio result+path
 	*buf = 2;
 	write(fd_skt, buf, sizeof(long int));
 	//riceve: conferma ricezione
@@ -221,12 +222,13 @@ static int send_res(long int result, char* path)
 	return -1;
 
 }
+
 static int thread_func2(char* path)
 {
 	//1. leggere dal disco il contenuto dell'intero file
 	//2. effettuare il calcolo sugli elementi contenuti nel file
 	//3. inviare il risultato al processo collector tramite il socket insieme al nome del file
-
+	printf("(thread_func2)\n");
 	FILE *fd;
   	long int x;
  	int res;
@@ -235,15 +237,15 @@ static int thread_func2(char* path)
   	fd = fopen(path, "r");
  	if (fd == NULL) {
    		perror("Errore in apertura del file");
-   		exit(1);
+   		exit(EXIT_FAILURE);
   	}
 
 	//dimensione del file
 	struct stat s;
-      if (lstat(path, &s) == -1){
+	if (lstat(path, &s) == -1){
       	LOG_ERR(errno, "lstat");
       	return -1;
-      }
+    }
 	int N = s.st_size / sizeof(long int); //num. long int in un file di s.st_size byte
 	long int result = 0;
 	size_t i = 0;
@@ -254,9 +256,9 @@ static int thread_func2(char* path)
 		result = result + (i * x);
 		i++;
 		N--;
-    		printf("%ld\n", x);
+    	//printf("%ld\n", x);
   	}
-
+	printf("(thread_func2) result=%ld\n", result);
 	//chiude il file
   	fclose(fd);
 	if (send_res(result, path) == -1){
@@ -265,28 +267,30 @@ static int thread_func2(char* path)
 	
 	return 0;
 }
+
 void* thread_func1(void *arg)
 {
+	printf("thread = %d\n", gettid());
+	printf_queue(conc_queue);
 	int err;
 	char* buf = NULL;
 
 	while (1){
 		mutex_lock(&mtx, "thread_func1: lock fallita");
 		//pop richiesta dalla coda concorrente
-		while ((buf = (char*)dequeue(&conc_queue)) == NULL){
-			if ( (err = pthread_cond_wait(&cv, &mtx)) != 0){
+		while ( !(buf = (char*)dequeue(&conc_queue)) ){	
+			if ((err = pthread_cond_wait(&cv, &mtx)) != 0){
 				LOG_ERR(err, "thread_func1: phtread_cond_wait fallita");
 				exit(EXIT_FAILURE);
 			}
 		}
 		mutex_unlock(&mtx, "thread_func1: unlock fallita");
-	
 		//funzione che opera sul file
-		thread_func2(buf);
-
+		//thread_func2(buf);
 		if(buf) free(buf);
 		buf = NULL;
 	}
+	return NULL;
 }
 
 
@@ -295,9 +299,46 @@ static void MasterWorker()
 	int err;
 	long int* buf = NULL;
 	buf = (long int*)malloc(sizeof(long int));
-
+	/*
+	///////////////// PROC. COLLECTOR /////////////////
+	pid_t pid = fork();
+	if (pid < 0){ //fork 1 fallita
+		LOG_ERR(errno, "fork()");
+		goto main_clean;
+	}else{
+		if (pid == 0){ //proc. figlio 1
+			setsid();
+			pid_t pid2 = fork();
+			if (pid2 < 0){ //fork 2 fallita
+				LOG_ERR(errno, "fork()");
+				goto main_clean;
+			}else{
+				if (pid2 > 0) //proc. genitore 2 
+					exit(0); //termino genitore 2 -> figlio 2 orfano 
+				else{	//proc. figlio 2
+					//if (close(0) == -1){ LOG_ERR(errno, "(main) close stdin"); goto main_clean; }
+					//if (close(1) == -1){ LOG_ERR(errno, "(main) close stdout"); goto main_clean; }
+					//if (close(2) == -1){ LOG_ERR(errno, "(main) close stderr"); goto main_clean; }
+					//umask(0);
+					//chdir("/");
+					printf("(main) exec - differenziazione in corso\n");
+					execl("./collector", "collector", (char*)NULL); //-> puoi inserire gli argomenti necessari da esportare
+					LOG_ERR(errno, "execl");
+					goto main_clean;
+				}
+			}
+		}else{ //proc. genitore 1
+			printf("(main) processo genitore\n");
+			//exit(0);
+			printf("processo 1 - pid=%d\n", getpid());
+		}
+	}
+*/
+	printf("creazione thread pool\n");
 	///////////////// THREAD POOL  /////////////////
-	pthread_t thread_workers_arr[n_thread];
+	pthread_t* thread_workers_arr = NULL;
+	thread_workers_arr = (pthread_t*)calloc(sizeof(pthread_t), n_thread);
+	//pthread_t thread_workers_arr[n_thread];
 	for(int i = 0; i < n_thread; i++){
 		if ((err = pthread_create(&(thread_workers_arr[i]), NULL, thread_func1, NULL)) != 0){    
 			LOG_ERR(err, "pthread_create in server_manager");
@@ -335,6 +376,7 @@ static void MasterWorker()
 	memset(&s5, 0, sizeof(struct sigaction));
 	s5.sa_handler = SIG_IGN;      
 	
+	/*
 	///////////////// SOCKET /////////////////
    	char socket_name[9];
 	strcpy(socket_name, "farm.sck");
@@ -349,57 +391,26 @@ static void MasterWorker()
 	ec_meno1_c(bind(fd_skt, (struct sockaddr*)&sa, sizeof(sa)), "(main) bind fallita", main_clean);
 	ec_meno1_c(listen(fd_skt, SOMAXCONN), "(main) listen fallita", main_clean);
 	
-	///////////////// PROC. COLLECTOR /////////////////
-	pid_t pid = fork();
-	if (pid < 0){ //fork 1 fallita
-		LOG_ERR(errno, "fork()");
-		goto main_clean;
-	}else{
-		if(pid == 0 ){ //proc. figlio 1
-			setsid();
-			pid_t pid2 = fork();
-			if (pid2 < 0){ //fork 2 fallita
-				LOG_ERR(errno, "fork()");
-				goto main_clean;
-			}else{ 
-				if (pid2 > 0) //proc. genitore 2 
-					exit(0); //termino genitore 2 -> figlio 2 orfano 
-				else{	//proc. figlio 2
-					//if (close(0) == -1){ LOG_ERR(errno, "(main) close stdin"); goto main_clean; }
-					//if (close(1) == -1){ LOG_ERR(errno, "(main) close stdout"); goto main_clean; }
-					//if (close(2) == -1){ LOG_ERR(errno, "(main) close stderr"); goto main_clean; }
-					//umask(0);
-					//chdir("/");
-					printf("(main) exec - differenziazione in corso\n");
-					execl("./collector", "collector", (char*)NULL); //-> puoi inserire gli argomenti necessari da esportare
-					LOG_ERR(errno, "execl");
-					goto main_clean;
-				}
-			}
-		}else{ //proc. genitore 1
-			printf("(main) processo genitore\n");
-			//exit(0);
-			printf("processo 1 - pid=%d\n", getpid());
-		}
-	}
+	
 	int fd;
 	ec_meno1_c((fd = accept(fd_skt, NULL, 0)), "(main) accept fallita", main_clean);
 	printf("(main) socket: %s - attivo\n", socket_name);
-
-	printf("(main) BUG HERE?\n");
-
+*/
+	//printf("(main) BUG HERE?\n");
+/*
 	//invia tot_files a collector
 	*buf = tot_files;
-	printf("(main) *buf = %ld\n", *buf);
 	int n; //conta byte inviati
 	if( (n = write(fd, buf, sizeof(size_t))) == -1) { LOG_ERR(errno, "(main) write"); goto main_clean; }
-	printf("(main) byte inviati = %d\n", n);
+	//printf("(main) byte inviati = %d\n", n);
 	read(fd, buf, sizeof(long int));
 	if(*buf != 0 ) goto main_clean;
+*/
 
 	///////////////// MAIN LOOP /////////////////
-	while( !closing && queue_capacity > 0 ){
-
+	while( !closing && queue_capacity >= 0 ){
+		//printf("main loop\n");
+		/*
 		if (sig_usr1){
 			//notificare al processo collector di stampare i risultati ottenuti fino ad ora
 			*buf = 1;
@@ -407,27 +418,40 @@ static void MasterWorker()
 			read(fd, buf, sizeof(long int));
 			if(*buf != 0 ) goto main_clean;
 		}
+*/
 		if (!closing){
-			mutex_lock(&mtx, "(main) lock fallita");
-			if (queue_capacity < q_len){
-				//estrazione del nodo
+			if (queue_capacity < q_len && tot_files > 0){
+				//lock
+				mutex_lock(&mtx, "(main) lock fallita");
+				//estrazione di un file
 				node* temp = extract_node(&files_list);
+				//enqueue
 				if (enqueue(&conc_queue, temp->str) == -1){ 
-					LOG_ERR(-1, "(main) enqueue fallita");
+					LOG_ERR(errno, "(main) enqueue fallita");
 					goto main_clean; 
 				}
+				printf("enqueue %s ok\n", temp->str);
+				printf_queue(conc_queue);
+				/*
 				//elimino il nodo
 				free(temp->str);
 				free(temp);
+				*/
 				queue_capacity++;
+				tot_files--;
+				printf("queue_capacity=%zu / tot_files=%zu\n", queue_capacity, tot_files);
+				//segnala
+				if ((err = pthread_cond_signal(&cv)) == -1){ 
+					LOG_ERR(err, "(main) pthread_cond_signal"); 
+					goto main_clean;
+				}
+				//unlock
+				mutex_unlock(&mtx, "(main) unlock fallita");
+				printf("(main) signal e unlock ok \n");
 			}
-			if ((err = pthread_cond_signal(&cv)) == -1){ 
-				LOG_ERR(err, "(main) pthread_cond_signal"); 
-				goto main_clean;
-			}
-			mutex_unlock(&mtx, "(main) unlock fallita");
 		}
 	}
+	printf("exit loop\n");
 
 	///////////////// TERMINAZIONE /////////////////
 	mutex_lock(&mtx, "(main) lock fallita");
@@ -461,6 +485,7 @@ static void MasterWorker()
 
 int main(int argc, char* argv[])
 {
+	printf("processo 1 = %d\n", getpid());
 	//parsing
     if (parser(argc, argv) == -1){
     	exit(EXIT_FAILURE);
