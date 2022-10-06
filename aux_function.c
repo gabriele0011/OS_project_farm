@@ -67,3 +67,25 @@ void sub_timespec(struct timespec t1, struct timespec t2, struct timespec *td)
      s[i] = '\0';
      reverse(s);
 } 
+
+void readn(int fd, long int* buf, size_t bytes)
+{
+	int N;
+	N = read(fd, buf, bytes);
+	if (N != bytes){
+		LOG_ERR(errno, "write fallita");
+		exit(EXIT_FAILURE);
+	}
+	return;
+}
+
+void writen(int fd, long int* buf, size_t bytes)
+{
+	int N;
+	N = write(fd, buf, bytes);
+	if (N != bytes){
+		LOG_ERR(errno, "write fallita");
+		exit(EXIT_FAILURE);
+	}
+	return;
+}

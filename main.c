@@ -53,15 +53,18 @@ static void handler_sigusr1(int signum){
 //FUNC
 static int file_check(char* path)
 {
-      //verifica se è un file regolare
-      struct stat s;
-      if (lstat(path, &s) == -1){
-           //LOG_ERR(errno, "lstat");
-            return -1;
-      }
-      //controllo file regolare
-      if(S_ISREG(s.st_mode) != 0){ tot_files++; return 0; }
-      else return -1;
+    //verifica file regolare
+    struct stat s;
+    if (lstat(path, &s) == -1){
+        LOG_ERR(errno, "lstat");
+ 	    return -1;
+    }
+	//controllo file regolare
+    if(S_ISREG(s.st_mode) != 0){ 
+		tot_files++; 
+		return 0; 
+	}else 
+		return -1;
 }
 
 static void take_from_dir(const char* dirname)
@@ -76,7 +79,7 @@ static void take_from_dir(const char* dirname)
 	//passo 2: esplorazione dir
 	struct dirent* entry;
 	errno = 0;
-	while (errno == 0 && ((entry = readdir(d)) != NULL)) {
+	while (errno == 0 && ((entry = readdir(d)) != NULL)){
 		//passo 3 : aggiornamento path
 		char path[PATH_MAX];
 		memset((void*)path, '\0', (sizeof(char)*PATH_MAX));
@@ -98,6 +101,7 @@ static void take_from_dir(const char* dirname)
 	if (closedir(d) == -1){ LOG_ERR(errno, "closedir in take_from_dir"); }
 	return;
 }
+
 static int parser(int dim, char** array)
 {		
     dir_name = NULL;
@@ -180,31 +184,10 @@ static int parser(int dim, char** array)
 	return 0;
 }
 
-int readn(int fd, long int* buf, size_t bytes)
-{
-	int N;
-	N = read(fd, buf, bytes);
-	if (N != bytes){
-		LOG_ERR(errno, "write fallita");
-		return -1;
-	}
-	return 0;
-}
-
-int writen(int fd, long int* buf, size_t bytes)
-{
-	int N;
-	N = write(fd, buf, bytes);
-	if (N != bytes){
-		LOG_ERR(errno, "write fallita");
-		return -1;
-	}
-	return 0;
-}
 
 static int send_res(long int result, char* path)
 {
-	printf("(send_res) in corso\n");
+	//printf("(send_res) in corso\n"); //DEBUG
 	long int* buf = NULL;
 	buf = (long int*)malloc(sizeof(long int));
 	
@@ -212,43 +195,34 @@ static int send_res(long int result, char* path)
 
 	//invia: tipo operazione 2=invio result+path
 	*buf = 2;
-	printf("(main) invio %ld\n", *buf);
 	writen(fd, buf, sizeof(size_t));
 	//riceve: conferma ricezione
 	readn(fd, buf, sizeof(size_t));
 	if(*buf != 0) goto sr_clean;
-
-	printf("(main) conferma ricevuta\n");
 	
 	//invia: result
-	printf("(main)+++ invio result\n");
 	*buf = result;
 	writen(fd, buf, sizeof(long int));
 	//riceve: conferma ricezione
 	readn(fd, buf, sizeof(size_t));
 	if(*buf != 0) goto sr_clean;
-	printf("--- result inviato\n");
 
 	//invia: len file name
-	printf("(main)+++ invio len_str\n");
 	size_t len_s = strlen(path);
 	*buf = len_s;
 	writen(fd, buf, sizeof(size_t));
 	//riceve: conferma ricezione
 	readn(fd, buf, sizeof(size_t));
 	if(*buf != 0) goto sr_clean;
-	printf("--- len_s inviato\n");
 
 	//invia file name
-	printf("(main)+++ invio str\n");
 	write(fd, path, sizeof(char)*len_s);
 	//riceve: conferma ricezione
 	readn(fd, buf, sizeof(size_t));
 	if(*buf != 0) goto sr_clean;
-	printf("--- str inviato \n");
 	
 	mutex_unlock(&op_mtx, "send_res");
-	printf("send_res eseguita\n");
+	//printf("send_res eseguita\n"); //DEBUG
 	return 0;
 
 	sr_clean:
@@ -261,14 +235,14 @@ static int thread_func2(char* path)
 	//1. leggere dal disco il contenuto dell'intero file
 	//2. effettuare il calcolo sugli elementi contenuti nel file
 	//3. inviare il risultato al processo collector tramite il socket insieme al nome del file
-	//printf("(thread_func2)\n");
+	//printf("(thread_func2)\n"); //DEBUG
 	FILE *fd;
   	long int x;
  	int res;
 	
 	//apre il file in lettura
-  	fd = fopen(path, "r");
- 	if (fd == NULL) {
+	fd = fopen(path, "r");
+	if (fd == NULL) {
    		perror("Errore in apertura del file");
    		exit(EXIT_FAILURE);
   	}
@@ -291,14 +265,13 @@ static int thread_func2(char* path)
 		N--;
     	//printf("%ld\n", x);
   	}
-	//printf("(thread_func2) result=%ld\n", result);
+	//printf("(thread_func2) result=%ld\n", result); //DEBUG
 	//chiude il file
   	fclose(fd);
 
 	if (send_res(result, path) == -1){
 		return -1;
 	}
-	
 	return 0;
 }
 
@@ -318,7 +291,7 @@ void* thread_func1(void *arg)
 				exit(EXIT_FAILURE);
 			}
 		}
-		printf("queue_capacity=%zu\n", queue_capacity);
+		//printf("queue_capacity=%zu\n", queue_capacity); //DEBUG
 		queue_capacity--;
 		mutex_unlock(&mtx, "thread_func1: unlock fallita");
 		//funzione che opera sul file
@@ -328,7 +301,6 @@ void* thread_func1(void *arg)
 	}
 	return NULL;
 }
-
 
 static void MasterWorker()
 {
@@ -357,7 +329,7 @@ static void MasterWorker()
 					//if (close(2) == -1){ LOG_ERR(errno, "(main) close stderr"); goto main_clean; }
 					//umask(0);
 					//chdir("/");
-					printf("(main) exec - differenziazione in corso\n");
+					//printf("(main) exec - differenziazione in corso\n"); //DEBUG
 					execl("./collector", "collector", (char*)NULL); //-> puoi inserire gli argomenti necessari da esportare
 					LOG_ERR(errno, "execl");
 					goto main_clean;
@@ -376,7 +348,7 @@ static void MasterWorker()
 			goto main_clean;
 		}
 	}
-	//printf("creazione thread pool avvenuta con successo\n");
+	//printf("creazione thread pool avvenuta con successo\n"); //DEBUG
 
 	///////////////// SEGNALI /////////////////
 	struct sigaction s;
@@ -407,7 +379,7 @@ static void MasterWorker()
 	struct sigaction s5;
 	memset(&s5, 0, sizeof(struct sigaction));
 	s5.sa_handler = SIG_IGN; 
-	//printf("(MasterWorker) installazione segnali avvenuta con successo\n");    
+	//printf("(MasterWorker) installazione segnali avvenuta con successo\n"); //DEBUG
 	
 	
 	///////////////// SOCKET /////////////////
@@ -424,27 +396,25 @@ static void MasterWorker()
 	ec_meno1_c(bind(fd_skt, (struct sockaddr*)&sa, sizeof(sa)), "(main) bind fallita", main_clean);
 	ec_meno1_c(listen(fd_skt, SOMAXCONN), "(main) listen fallita", main_clean);
 	ec_meno1_c((fd = accept(fd_skt, NULL, 0)), "(main) accept fallita", main_clean);
-	//printf("(main) socket: %s - attivo\n", socket_name);
+	//printf("(main) socket: %s - attivo\n", socket_name); //DEBUG
 
-	//printf("(main) BUG HERE?\n");
 
-	//invia tot_files a collector
+	//invia: tot_files
 	*buf = tot_files;
-	int n; //conta byte inviati
-	if( (n = writen(fd, buf, sizeof(size_t))) == -1) { LOG_ERR(errno, "(main) write"); goto main_clean; }
-	//printf("(main) byte inviati = %d\n", n);
-	readn(fd, buf, sizeof(long int));
-	if(*buf != 0 ) goto main_clean;
+	writen(fd, buf, sizeof(size_t));
+	//riceve: conferma ricezione 
+	readn(fd, buf, sizeof(size_t));
+	if (*buf != 0) goto main_clean;
 
 
 	///////////////// MAIN LOOP /////////////////
-	while( !closing && queue_capacity >= 0 ){
+	while (!closing && queue_capacity >= 0){
 		if (sig_usr1){
 			//notificare al processo collector di stampare i risultati ottenuti fino ad ora
 			*buf = 1;
 			writen(fd, buf, sizeof(long int));
 			readn(fd, buf, sizeof(long int));
-			if(*buf != 0 ) goto main_clean;
+			if (*buf != 0) goto main_clean;
 		}
 		if (!closing){
 			if (queue_capacity < q_len && tot_files > 0){
@@ -457,14 +427,12 @@ static void MasterWorker()
 					LOG_ERR(errno, "(main) enqueue fallita");
 					goto main_clean; 
 				}
-				//printf("enqueue %s ok\n", temp->str);
-				//printf_queue(conc_queue);
-				//elimino il nodo
+				//elimino il nodo da files_list
 				free(temp->str);
 				free(temp);
 				queue_capacity++;
 				tot_files--;
-				printf("queue_capacity=%zu / tot_files=%zu\n", queue_capacity, tot_files);
+				//printf("queue_capacity=%zu / tot_files=%zu\n", queue_capacity, tot_files); //DEBUG
 				//segnala
 				if ((err = pthread_cond_signal(&cv)) == -1){ 
 					LOG_ERR(err, "(main) pthread_cond_signal"); 
@@ -476,7 +444,7 @@ static void MasterWorker()
 			}
 		}
 	}
-	printf("exit loop\n");
+	printf("exit loop\n"); //DEBUG
 
 	///////////////// TERMINAZIONE /////////////////
 	mutex_lock(&mtx, "(main) lock fallita");
@@ -506,7 +474,6 @@ static void MasterWorker()
 	if(conc_queue) dealloc_queue(&conc_queue);
 	exit(EXIT_FAILURE);
 }
-
 
 int main(int argc, char* argv[])
 {
