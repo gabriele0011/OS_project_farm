@@ -177,10 +177,12 @@ static int parser(int dim, char** array)
     	return -1;
     }
 
+	//se -d allora esplora dir
     if(dir_name != NULL) take_from_dir(dir_name);
+	
+
 	printf("DEBUG - lista dei file acquisiti\n"); //DEBUG
     print_list(files_list); //DEBUG
-	
 	return 0;
 }
 
@@ -351,41 +353,44 @@ static void MasterWorker()
 	//printf("creazione thread pool avvenuta con successo\n"); //DEBUG
 
 	///////////////// SEGNALI /////////////////
-	struct sigaction s;
-	memset(&s, 0, sizeof(struct sigaction));
-	s.sa_handler = handler_sigint;
-	ec_meno1_c(sigaction(SIGINT, &s, NULL), "(main) sigaction fallita", main_clean);
-	
 	struct sigaction s1;
 	memset(&s1, 0, sizeof(struct sigaction));
-	s1.sa_handler = handler_sigquit;
-	ec_meno1_c(sigaction(SIGQUIT, &s1, NULL), "(main) sigaction fallita", main_clean);
+	s1.sa_handler = handler_sigint;
+	ec_meno1_c(sigaction(SIGINT, &s1, NULL), "(main) sigaction fallita", main_clean);
 	
 	struct sigaction s2;
 	memset(&s2, 0, sizeof(struct sigaction));
-	s2.sa_handler = handler_sighup;
-	ec_meno1_c(sigaction(SIGHUP, &s2, NULL), "(main) sigaction fallita", main_clean); 
-
+	s2.sa_handler = handler_sigquit;
+	ec_meno1_c(sigaction(SIGQUIT, &s2, NULL), "(main) sigaction fallita", main_clean);
+	
 	struct sigaction s3;
 	memset(&s3, 0, sizeof(struct sigaction));
-	s3.sa_handler = handler_sigterm;
-	ec_meno1_c(sigaction(SIGTERM, &s3, NULL), "(main) sigaction fallita", main_clean);  
+	s3.sa_handler = handler_sighup;
+	ec_meno1_c(sigaction(SIGHUP, &s3, NULL), "(main) sigaction fallita", main_clean); 
 
 	struct sigaction s4;
 	memset(&s4, 0, sizeof(struct sigaction));
-	s4.sa_handler = handler_sigusr1;
-	ec_meno1_c(sigaction(SIGUSR1, &s4, NULL), "(main) sigaction fallita", main_clean);
+	s4.sa_handler = handler_sigterm;
+	ec_meno1_c(sigaction(SIGTERM, &s4, NULL), "(main) sigaction fallita", main_clean);  
 
 	struct sigaction s5;
 	memset(&s5, 0, sizeof(struct sigaction));
-	s5.sa_handler = SIG_IGN; 
+	s5.sa_handler = handler_sigusr1;
+	ec_meno1_c(sigaction(SIGUSR1, &s5, NULL), "(main) sigaction fallita", main_clean);
+
+	struct sigaction s6;
+	memset(&s6, 0, sizeof(struct sigaction));
+	s6.sa_handler = SIG_IGN; 
 	//printf("(MasterWorker) installazione segnali avvenuta con successo\n"); //DEBUG
 	
 	
 	///////////////// SOCKET /////////////////
-   	char socket_name[9];
-	strcpy(socket_name, "farm.sck");
-	socket_name[8] = '\0';
+   	size_t len = 9;
+	char* socket_name = NULL;
+	socket_name = (char*)calloc(sizeof(char), len);
+	//char socket_name[len];
+	strncpy(socket_name, "farm.sck", len-1);
+	socket_name[len-1] = '\0';
 	struct sockaddr_un sa;
 	sa.sun_family = AF_UNIX;
 	size_t N = strlen(socket_name);
@@ -458,20 +463,22 @@ static void MasterWorker()
       			goto main_clean;
       		}	
 	}
-	//(!) processo collector?
 
 	close(fd_skt);
-	//if(socket_name) free(socket_name);
-	if(files_list) dealloc_list(&files_list);
-	if(conc_queue) dealloc_queue(&conc_queue);
+	if (buf) free(buf);
+	if (thread_workers_arr) free(thread_workers_arr);
+	if (socket_name) free(socket_name);
+	if (files_list) dealloc_list(&files_list);
+	if (conc_queue) dealloc_queue(&conc_queue);
 	exit(EXIT_SUCCESS);
 
 	//chiususa server in caso di errore
 	main_clean:
-	//if(socket_name) free(socket_name);
-	if(buf) free(buf);
-	if(files_list) dealloc_list(&files_list);
-	if(conc_queue) dealloc_queue(&conc_queue);
+	if (buf) free(buf);
+	if (thread_workers_arr) free(thread_workers_arr);
+	if (socket_name) free(socket_name);
+	if (files_list) dealloc_list(&files_list);
+	if (conc_queue) dealloc_queue(&conc_queue);
 	exit(EXIT_FAILURE);
 }
 

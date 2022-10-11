@@ -12,8 +12,8 @@ int fd_skt;
 
 int cmp_func(const void*a, const void* b)
 {
-      elem* x = a;
-      elem* y = b;
+      const elem* x = a;
+      const elem* y = b;
       return (x->res - y->res);
 }
 
@@ -79,8 +79,7 @@ int main()
       //COMUNICA A COLLECTOR numero di file in input
       size_t tot_files = 0;
       //riceve: tot_files
-      int n;
-	n = readn(fd_skt, buf, sizeof(size_t));
+	readn(fd_skt, buf, sizeof(size_t));
       tot_files = *buf;
       //invia: conferma ricezione
       *buf = 0;
@@ -104,14 +103,14 @@ int main()
             //invia: conferma ricezione
             *buf = 0;
             writen(fd_skt, buf, sizeof(size_t));
-            printf("op=%zu RICEVUTA\n", op);
+           //printf("op=%zu RICEVUTA\n", op); //DEBUG
 
             //stampa i risultati fino a questo istante
             if (op == 1){
-                  printf("(collector) OPERAZIONE 1\n"); //DEBUG
+                  //printf("(collector) OPERAZIONE 1\n"); //DEBUG
                   //ordinamento
                   qsort(arr, tot_files, sizeof(elem), cmp_func);
-                  //stampa array fino al j esimo
+                  //stampa array fino al j-esimo
                   for(int k = 0; k < j; k++)
                         printf("%ld %s\n", arr[k].res, arr[k].path);
                   //MUTEX
@@ -152,17 +151,24 @@ int main()
                   i++; j--;
             }
       }
-      printf("(collector) terminazione\n");
-      printf("(collector) stampa risultati\n");
+      //printf("(collector) terminazione\n"); //DEBUG
+      //printf("(collector) stampa risultati\n"); //DEBUG
+      
+      //ordina risultati
       qsort(arr, tot_files, sizeof(elem), cmp_func);
+      
+      //stampa risultati
       for(int k = 0; k < tot_files; k++)
             printf("%ld %s\n", arr[k].res, arr[k].path);
+      
+      //chiusura normale
       if (arr) free(arr);
       if (buf) free(buf);
       return 0;
       
+      //chiusura errore
       main_clean:
-      if (arr) free(arr);
+      //if (arr) free(arr);
       if (buf) free(buf);
       return -1;
 }
