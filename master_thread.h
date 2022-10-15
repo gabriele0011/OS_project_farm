@@ -3,7 +3,6 @@
 #include "list.h"
 #include "global_var.h"
 #include "pool_worker.h"
+#include "collector.h"
 
-
-int file_check(char* path);
 void MasterWorker();

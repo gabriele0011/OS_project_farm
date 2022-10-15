@@ -56,6 +56,9 @@ void take_from_dir(const char* dirname)
 			//printf("take_from_dir su %s\n", path); DEBUG
 			if(file_check(path) != -1)
             	insert_node(&files_list, path);
+			else{
+				LOG_ERR(errno, "file_check in take_from_dir");
+			}
 		}
 	}
 	//chiudere la directory
@@ -63,12 +66,33 @@ void take_from_dir(const char* dirname)
 	return;
 }
 
+
+int file_check(char* path)
+{
+	printf("sono in file_check\n");
+	printf("file_check on %s\n", path);
+    //verifica file regolare
+    struct stat s;
+    if (lstat(path, &s) == -1){
+        LOG_ERR(errno, "lstat");
+ 	    return -1;
+    }
+	//controllo file regolare
+    if(S_ISREG(s.st_mode) != 0){ 
+		tot_files++; 
+		return 0; 
+	}else 
+		return -1;
+}
+
+
 int parser(int dim, char** array)
-{		
+{	
     dir_name = NULL;
     //CICLO PARSING: si gestiscono i comandi di setting del server -n, -q, -d, -t + lista di files
 	int i = 0;
 	while (++i < dim){
+		printf("pasing now: %s\n", array[i+1]);
         //CASO -n <_>
 		if (is_opt(array[i], "-n")){
 			if (is_argument(array[i+1])){
@@ -126,10 +150,12 @@ int parser(int dim, char** array)
 		    printf("DEBUG: ms_delay = %d\n", ms_delay); //DEBUG
             //i++;
 		}
-
         //CASO lista di file
-		if (file_check(array[i]) != -1)
+		if (file_check(array[i]) != -1){
     		insert_node(&files_list, array[i]);
+		}else{
+			LOG_ERR(errno, "file_check parsing");
+		}
 	}
 
 	//controllo dipendenze
@@ -149,7 +175,7 @@ int parser(int dim, char** array)
 
 int main(int argc, char* argv[])
 {
-	//printf("processo 1 = %d\n", getpid());
+	printf("PROGRAMMA AVVIATO\n");
 	//parsing
     if (parser(argc, argv) == -1){
     	exit(EXIT_FAILURE);

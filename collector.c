@@ -1,14 +1,4 @@
-#include "header_file.h"
-#include "error_ctrl.h"
-#include "aux_function.h"
-
-
-typedef struct _elem{
-      char path[255];
-      long int res;
-}elem;
-
-int fd_skt;
+#include "collector.h"
 
 int cmp_func(const void*a, const void* b)
 {
@@ -18,9 +8,11 @@ int cmp_func(const void*a, const void* b)
 }
 
 
-int main()
+void collector()
 {
-      //printf("(collector) pid=%d\n", getpid());
+
+      printf("(collector) pid=%d\n", getpid());
+      int fd_s;
       long int* buf = NULL;
 	buf = (long int*)malloc(sizeof(long int));
       int i = 0;
@@ -66,11 +58,11 @@ int main()
 	strncpy(sa.sun_path, socket_name, len_sockname);
 	sa.sun_family = AF_UNIX;
     
-	if ((fd_skt = socket(AF_UNIX, SOCK_STREAM, 0)) == -1){
+	if ((fd_s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1){
             LOG_ERR(errno, "socket()");
             goto main_clean;
       }
-      if (connect(fd_skt, (struct sockaddr*)&sa, sizeof(sa)) == -1){
+      if (connect(fd_s, (struct sockaddr*)&sa, sizeof(sa)) == -1){
 	    LOG_ERR(errno, "(collector) connect");
           goto main_clean;
       }
@@ -79,11 +71,11 @@ int main()
       //COMUNICA A COLLECTOR numero di file in input
       size_t tot_files = 0;
       //riceve: tot_files
-	readn(fd_skt, buf, sizeof(size_t));
+	readn(fd_s, buf, sizeof(size_t));
       tot_files = *buf;
       //invia: conferma ricezione
       *buf = 0;
-	writen(fd_skt, buf, sizeof(size_t));
+	writen(fd_s, buf, sizeof(size_t));
 
       //elem arr[tot_files]; //array che conterra tutti i risultati
       elem* arr = NULL;
@@ -98,11 +90,11 @@ int main()
       while(j > 0){
             //riceve: operazione
             *buf = 0;
-            readn(fd_skt, buf, sizeof(long int));
+            readn(fd_s, buf, sizeof(long int));
             op = *buf;
             //invia: conferma ricezione
             *buf = 0;
-            writen(fd_skt, buf, sizeof(size_t));
+            writen(fd_s, buf, sizeof(size_t));
            //printf("op=%zu RICEVUTA\n", op); //DEBUG
 
             //stampa i risultati fino a questo istante
@@ -120,27 +112,27 @@ int main()
             if (op == 2){
                   //riceve: risultato
                   long int result;
-	            readn(fd_skt, buf, sizeof(long int));
+	            readn(fd_s, buf, sizeof(long int));
                   result = *buf;
                   //invia: conferma ricezione
                   *buf = 0;
-	            writen(fd_skt, buf, sizeof(size_t));
+	            writen(fd_s, buf, sizeof(size_t));
 
                   //riceve: lung. str
                   size_t len_s;
-	            readn(fd_skt, buf, sizeof(size_t));
+	            readn(fd_s, buf, sizeof(size_t));
                   len_s = *buf; //cast?
                   //invia: conferma ricezione
                   *buf = 0;
-	            writen(fd_skt, buf, sizeof(size_t));
+	            writen(fd_s, buf, sizeof(size_t));
 
                   //riceve: str
                   char* str = NULL;
                   str = calloc(sizeof(char), len_s);
-	            readn(fd_skt, str, sizeof(char)*len_s);
+	            readn(fd_s, str, sizeof(char)*len_s);
                   //invia: conferma ricezione
                   *buf = 0;
-	            writen(fd_skt, buf, sizeof(size_t));
+	            writen(fd_s, buf, sizeof(size_t));
 
                   //printf("(collector) ricevuto 1) res=%ld - 2) len_s=%zu - 3) str:%s\n", result, len_s, str);
                   
@@ -164,11 +156,11 @@ int main()
       //chiusura normale
       if (arr) free(arr);
       if (buf) free(buf);
-      return 0;
+      exit(EXIT_FAILURE);
       
       //chiusura errore
       main_clean:
       //if (arr) free(arr);
       if (buf) free(buf);
-      return -1;
+      exit(EXIT_SUCCESS);
 }

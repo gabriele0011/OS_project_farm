@@ -26,22 +26,6 @@ static void handler_sigusr1(int signum){
 }
 
 
-int file_check(char* path)
-{
-    //verifica file regolare
-    struct stat s;
-    if (lstat(path, &s) == -1){
-        LOG_ERR(errno, "lstat");
- 	    return -1;
-    }
-	//controllo file regolare
-    if(S_ISREG(s.st_mode) != 0){ 
-		tot_files++; 
-		return 0; 
-	}else 
-		return -1;
-}
-
 void MasterWorker()
 {
 	int err;
@@ -54,29 +38,10 @@ void MasterWorker()
 		LOG_ERR(errno, "fork()");
 		goto main_clean;
 	}else{
-		if (pid == 0){ //proc. figlio 1
-			setsid();
-			pid_t pid2 = fork();
-			if (pid2 < 0){ //fork 2 fallita
-				LOG_ERR(errno, "fork()");
-				goto main_clean;
-			}else{
-				if (pid2 > 0) //proc. genitore 2 
-					exit(0); //termino genitore 2 -> figlio 2 orfano 
-				else{	//proc. figlio 2
-					//if (close(0) == -1){ LOG_ERR(errno, "(main) close stdin"); goto main_clean; }
-					//if (close(1) == -1){ LOG_ERR(errno, "(main) close stdout"); goto main_clean; }
-					//if (close(2) == -1){ LOG_ERR(errno, "(main) close stderr"); goto main_clean; }
-					//umask(0);
-					//chdir("/");
-					//printf("(main) exec - differenziazione in corso\n"); //DEBUG
-					execl("./collector", "collector", (char*)NULL); //-> puoi inserire gli argomenti necessari da esportare
-					LOG_ERR(errno, "execl");
-					goto main_clean;
-				}
-			}
-		}
+		if (pid == 0) //proc. figlio 1
+			collector();
 	}
+
     ///////////////// THREAD POOL  /////////////////
 	pthread_t* thread_workers_arr = NULL;
     thread_workers_arr = create_pool_worker();
