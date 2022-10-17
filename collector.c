@@ -1,4 +1,6 @@
 #include "collector.h"
+#define SOCK_NAME "farm.sck"
+
 
 int cmp_func(const void*a, const void* b)
 {
@@ -12,10 +14,27 @@ void collector()
 {
 
       printf("(collector) pid=%d\n", getpid());
-      int fd_s;
       long int* buf = NULL;
 	buf = (long int*)malloc(sizeof(long int));
       int i = 0;
+
+      ///////////////// SOCKET /////////////////
+	int sockfd;
+      struct sockaddr_un sa;
+	sa.sun_family = AF_UNIX;
+	size_t len = strlen(SOCK_NAME);
+	strncpy(sa.sun_path, SOCK_NAME, len);
+	sa.sun_path[len] = '\0';
+
+	if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1){
+            LOG_ERR(errno, "(collector) socket");
+            goto main_clean;
+      }
+      if (connect(sockfd, (struct sockaddr*)&sa, sizeof(sa)) == -1){
+	    LOG_ERR(errno, "(collector) connect");
+          goto main_clean;
+      }
+	//printf("(collector) socket: %s - attivo\n", sa.sun_path); //DEBUG
 
       ///////////////// SEGNALI /////////////////
       struct sigaction s;
@@ -47,35 +66,15 @@ void collector()
 	memset(&s5, 0, sizeof(struct sigaction));
 	s5.sa_handler = SIG_IGN;
     
-      
-      ///////////////// SOCKET /////////////////
-	char socket_name[9];
-	strcpy(socket_name, "farm.sck");
-	socket_name[8] = '\0';
-      struct sockaddr_un sa;
-	size_t len_sockname =  strlen(socket_name);
-	memset((void*)sa.sun_path, '\0', len_sockname);
-	strncpy(sa.sun_path, socket_name, len_sockname);
-	sa.sun_family = AF_UNIX;
-    
-	if ((fd_s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1){
-            LOG_ERR(errno, "socket()");
-            goto main_clean;
-      }
-      if (connect(fd_s, (struct sockaddr*)&sa, sizeof(sa)) == -1){
-	    LOG_ERR(errno, "(collector) connect");
-          goto main_clean;
-      }
-      //printf("(collector) socket: %s - attivo\n", socket_name);
 
       //COMUNICA A COLLECTOR numero di file in input
       size_t tot_files = 0;
       //riceve: tot_files
-	readn(fd_s, buf, sizeof(size_t));
+	readn(sockfd, buf, sizeof(size_t));
       tot_files = *buf;
       //invia: conferma ricezione
       *buf = 0;
-	writen(fd_s, buf, sizeof(size_t));
+	writen(sockfd, buf, sizeof(size_t));
 
       //elem arr[tot_files]; //array che conterra tutti i risultati
       elem* arr = NULL;
@@ -90,11 +89,11 @@ void collector()
       while(j > 0){
             //riceve: operazione
             *buf = 0;
-            readn(fd_s, buf, sizeof(long int));
+            readn(sockfd, buf, sizeof(long int));
             op = *buf;
             //invia: conferma ricezione
             *buf = 0;
-            writen(fd_s, buf, sizeof(size_t));
+            writen(sockfd, buf, sizeof(size_t));
            //printf("op=%zu RICEVUTA\n", op); //DEBUG
 
             //stampa i risultati fino a questo istante
@@ -108,31 +107,31 @@ void collector()
                   //MUTEX
             }
 
-            //ricezione di un nuovo risultato+path
+            //ricezione di un nuovo risultato e path
             if (op == 2){
                   //riceve: risultato
                   long int result;
-	            readn(fd_s, buf, sizeof(long int));
+	            readn(sockfd, buf, sizeof(long int));
                   result = *buf;
                   //invia: conferma ricezione
                   *buf = 0;
-	            writen(fd_s, buf, sizeof(size_t));
+	            writen(sockfd, buf, sizeof(size_t));
 
                   //riceve: lung. str
                   size_t len_s;
-	            readn(fd_s, buf, sizeof(size_t));
+	            readn(sockfd, buf, sizeof(size_t));
                   len_s = *buf; //cast?
                   //invia: conferma ricezione
                   *buf = 0;
-	            writen(fd_s, buf, sizeof(size_t));
+	            writen(sockfd, buf, sizeof(size_t));
 
                   //riceve: str
                   char* str = NULL;
                   str = calloc(sizeof(char), len_s);
-	            readn(fd_s, str, sizeof(char)*len_s);
+	            readn(sockfd, str, sizeof(char)*len_s);
                   //invia: conferma ricezione
                   *buf = 0;
-	            writen(fd_s, buf, sizeof(size_t));
+	            writen(sockfd, buf, sizeof(size_t));
 
                   //printf("(collector) ricevuto 1) res=%ld - 2) len_s=%zu - 3) str:%s\n", result, len_s, str);
                   
@@ -141,6 +140,7 @@ void collector()
                   (arr[i].path)[len_s] = '\0';
                   arr[i].res = result; 
                   i++; j--;
+                  if (str) free(str);
             }
       }
       //printf("(collector) terminazione\n"); //DEBUG
@@ -154,13 +154,14 @@ void collector()
             printf("%ld %s\n", arr[k].res, arr[k].path);
       
       //chiusura normale
+      
       if (arr) free(arr);
       if (buf) free(buf);
-      exit(EXIT_FAILURE);
+      exit(EXIT_SUCCESS);
       
       //chiusura errore
       main_clean:
       //if (arr) free(arr);
       if (buf) free(buf);
-      exit(EXIT_SUCCESS);
+      exit(EXIT_FAILURE);
 }

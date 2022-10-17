@@ -2,6 +2,7 @@
 //1. controlla che in take_from_dir si consideri il path dei file prelevati dalla directory
 
 #include "main.h"
+#define PATH_LEN_MAX 255
 
 //var. mutex e cond.
 pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -36,14 +37,14 @@ void take_from_dir(const char* dirname)
             LOG_ERR(errno, "opendir in take_from_dir"); 
             return; 
       }
-	printf("take_from_dir:	dir '%s' aperta\n", dirname); //DEBUG
+	//printf("take_from_dir:	dir '%s' aperta\n", dirname); //DEBUG
 	//passo 2: esplorazione dir
 	struct dirent* entry;
 	errno = 0;
 	while (errno == 0 && ((entry = readdir(d)) != NULL)){
 		//passo 3 : aggiornamento path
-		char path[PATH_MAX];
-		memset((void*)path, '\0', (sizeof(char)*PATH_MAX));
+		char path[PATH_LEN_MAX];
+		memset((void*)path, '\0', (sizeof(char)*PATH_LEN_MAX));
 		snprintf(path, PATH_MAX , "%s/%s", dirname, entry->d_name);
 		//passo 4 caso 1: controlla che se si tratti di una dir
 		if (is_directory(path)){	
@@ -54,6 +55,7 @@ void take_from_dir(const char* dirname)
 		//passo 4 caso 2: inserimento del file in lista
 		}else{
 			//printf("take_from_dir su %s\n", path); DEBUG
+			//file check file dalla dir
 			if(file_check(path) != -1)
             	insert_node(&files_list, path);
 			else{
@@ -69,14 +71,14 @@ void take_from_dir(const char* dirname)
 
 int file_check(char* path)
 {
-	printf("sono in file_check\n");
-	printf("file_check on %s\n", path);
+	//printf("file_check on %s\n", path); //DEBUG
     //verifica file regolare
     struct stat s;
     if (lstat(path, &s) == -1){
-        LOG_ERR(errno, "lstat");
+        //LOG_ERR(errno, "lstat");
  	    return -1;
     }
+
 	//controllo file regolare
     if(S_ISREG(s.st_mode) != 0){ 
 		tot_files++; 
@@ -88,11 +90,12 @@ int file_check(char* path)
 
 int parser(int dim, char** array)
 {	
+	printf("PARSER\n");
     dir_name = NULL;
     //CICLO PARSING: si gestiscono i comandi di setting del server -n, -q, -d, -t + lista di files
 	int i = 0;
 	while (++i < dim){
-		printf("pasing now: %s\n", array[i+1]);
+		//printf("pasing now: %s\n", array[i+1]);
         //CASO -n <_>
 		if (is_opt(array[i], "-n")){
 			if (is_argument(array[i+1])){
@@ -104,7 +107,7 @@ int parser(int dim, char** array)
                 LOG_ERR(EINVAL, "(main) argomento -n mancante");
 				return -1;
             }
-			printf("DEBUG n_thread = %zu\n", n_thread); //DEBUG
+			//printf("DEBUG n_thread = %zu\n", n_thread); //DEBUG
             //i++;
 		}
 
@@ -119,7 +122,7 @@ int parser(int dim, char** array)
                 LOG_ERR(EINVAL, "(main) argomento -q mancante");
 				return -1;
             }
-		    printf("DEBUG q_len = %zu\n", q_len); //DEBUG
+		    //printf("DEBUG q_len = %zu\n", q_len); //DEBUG
             //i++;
 		}
             
@@ -132,7 +135,7 @@ int parser(int dim, char** array)
 				LOG_ERR(EINVAL, "(main) argomento -d mancante");
 				return -1;
 			}
-            printf("DEBUG: dir_name = %s\n", dir_name); //DEBUG
+            //printf("DEBUG: dir_name = %s\n", dir_name); //DEBUG
             //i++;
 		}
 		
@@ -147,15 +150,19 @@ int parser(int dim, char** array)
                 LOG_ERR(EINVAL, "(main) argomento -t mancante");
 				return -1;
 			}
-		    printf("DEBUG: ms_delay = %d\n", ms_delay); //DEBUG
+		    //printf("DEBUG: ms_delay = %d\n", ms_delay); //DEBUG
             //i++;
 		}
-        //CASO lista di file
+        //CASO file check lista di file
 		if (file_check(array[i]) != -1){
     		insert_node(&files_list, array[i]);
-		}else{
-			LOG_ERR(errno, "file_check parsing");
 		}
+		/* //log errore file check
+		else{
+			//fprintf(stdout, "array[i] = %s\n", array[i]);
+			//LOG_ERR(errno, "file_check parsing");
+		}
+		*/
 	}
 
 	//controllo dipendenze
@@ -175,7 +182,7 @@ int parser(int dim, char** array)
 
 int main(int argc, char* argv[])
 {
-	printf("PROGRAMMA AVVIATO\n");
+	printf("processo MasterWorker pid=%d\n", getpid());
 	//parsing
     if (parser(argc, argv) == -1){
     	exit(EXIT_FAILURE);

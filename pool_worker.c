@@ -40,10 +40,12 @@ int send_res(long int result, char* path)
 	
 	mutex_unlock(&op_mtx, "send_res");
 	//printf("send_res eseguita\n"); //DEBUG
+	if (buf) free(buf);
 	return 0;
 
 	sr_clean:
 	mutex_unlock(&op_mtx, "send_res");
+	if (buf) free(buf);
 	return -1;
 }
 
@@ -94,7 +96,7 @@ int thread_func2(char* path)
 
 void* thread_func1(void *arg)
 {
-	//printf("thread = %d\n", gettid());
+	printf("thread = %d\n", gettid());
 	//printf_queue(conc_queue);
 	int err;
 	char* buf = NULL;
@@ -102,7 +104,7 @@ void* thread_func1(void *arg)
 	while (1){
 		mutex_lock(&mtx, "thread_func1: lock fallita");
 		//pop richiesta dalla coda concorrente
-		while ( !(buf = (char*)dequeue(&conc_queue)) ){	
+		while ( !(buf = (char*)dequeue(&conc_queue)) && !closing ){	
 			if ((err = pthread_cond_wait(&cv, &mtx)) != 0){
 				LOG_ERR(err, "thread_func1: phtread_cond_wait fallita");
 				exit(EXIT_FAILURE);
@@ -111,12 +113,14 @@ void* thread_func1(void *arg)
 		//printf("queue_capacity=%zu\n", queue_capacity); //DEBUG
 		queue_capacity--;
 		mutex_unlock(&mtx, "thread_func1: unlock fallita");
+		if (closing) break;
 		//funzione che opera sul file
 		thread_func2(buf);
 		if(buf) free(buf);
 		buf = NULL;
 	}
-	return NULL;
+	if (buf) free(buf);
+	return (void*)0;
 }
 
 pthread_t* create_pool_worker()
