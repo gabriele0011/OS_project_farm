@@ -18,6 +18,8 @@ extern int ms_delay;
 //segnali
 extern volatile sig_atomic_t sig_usr1;
 extern volatile sig_atomic_t closing;
+extern volatile sig_atomic_t child_term;
+
 
 //var. mutex e cond.
 extern pthread_mutex_t mtx;
