@@ -85,7 +85,6 @@ else
     echo "test3 passed"
 fi
 
-
 #
 # esecuzione con valgrind. Se valgrind trova dei problemi esce con 
 # exit status 1.
