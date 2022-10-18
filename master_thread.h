@@ -5,4 +5,7 @@
 #include "pool_worker.h"
 #include "collector.h"
 
+
+#define SOCK_NAME "farm.sck"
+
 void MasterWorker();

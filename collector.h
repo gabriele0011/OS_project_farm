@@ -2,6 +2,9 @@
 #include "error_ctrl.h"
 #include "aux_function.h"
 
+
+#define SOCK_NAME "farm.sck"
+
 typedef struct _elem{
       char path[255];
       long int res;
