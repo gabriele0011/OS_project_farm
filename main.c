@@ -27,6 +27,8 @@ size_t queue_capacity = 0;
 //segnali
 volatile sig_atomic_t sig_usr1 = 0;
 volatile sig_atomic_t closing = 0;
+volatile sig_atomic_t child_term = 0;
+
 
 
 void take_from_dir(const char* dirname)
@@ -89,8 +91,7 @@ int file_check(char* path)
 
 
 int parser(int dim, char** array)
-{	
-	printf("PARSER\n");
+{
     dir_name = NULL;
     //CICLO PARSING: si gestiscono i comandi di setting del server -n, -q, -d, -t + lista di files
 	int i = 0;
@@ -175,14 +176,14 @@ int parser(int dim, char** array)
     if(dir_name != NULL) take_from_dir(dir_name);
 	
 
-	printf("DEBUG - lista dei file acquisiti\n"); //DEBUG
-    print_list(files_list); //DEBUG
+	//printf("DEBUG - lista dei file acquisiti\n"); //DEBUG
+    //print_list(files_list); //DEBUG
 	return 0;
 }
 
 int main(int argc, char* argv[])
 {
-	printf("processo MasterWorker pid=%d\n", getpid());
+	//printf("processo MasterWorker pid=%d\n", getpid());
 	//parsing
     if (parser(argc, argv) == -1){
     	exit(EXIT_FAILURE);

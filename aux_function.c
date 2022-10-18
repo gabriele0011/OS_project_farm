@@ -53,7 +53,7 @@ void readn(int fd, long int* buf, size_t bytes)
 	N = read(fd, buf, bytes);
 	if (N != bytes){
 		LOG_ERR(errno, "write fallita");
-		exit(EXIT_FAILURE);
+		//exit(EXIT_FAILURE);
 	}
 	return;
 }
@@ -64,7 +64,8 @@ void writen(int fd, long int* buf, size_t bytes)
 	N = write(fd, buf, bytes);
 	if (N != bytes){
 		LOG_ERR(errno, "write fallita");
-		exit(EXIT_FAILURE);
+		printf("chi è? buf=%ld - bytes=%zu\n", *buf, bytes);
+		//exit(EXIT_FAILURE);
 	}
 	return;
 }

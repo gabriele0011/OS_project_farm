@@ -6,17 +6,16 @@ int cmp_func(const void*a, const void* b)
 {
       const elem* x = a;
       const elem* y = b;
-      return (x->res - y->res);
+      if (x->res >= y->res) return 1;
+      else return -1;
 }
 
 
 void collector()
 {
-
-      printf("(collector) pid=%d\n", getpid());
+      //printf("(collector) pid=%d\n", getpid());
       long int* buf = NULL;
 	buf = (long int*)malloc(sizeof(long int));
-      int i = 0;
 
       ///////////////// SOCKET /////////////////
 	int sockfd;
@@ -68,28 +67,30 @@ void collector()
     
 
       //COMUNICA A COLLECTOR numero di file in input
-      size_t tot_files = 0;
-      //riceve: tot_files
+      size_t tot_file_num = 0;
+      //riceve: tot_file_num
 	readn(sockfd, buf, sizeof(size_t));
-      tot_files = *buf;
+      tot_file_num = *buf;
       //invia: conferma ricezione
       *buf = 0;
 	writen(sockfd, buf, sizeof(size_t));
 
-      //elem arr[tot_files]; //array che conterra tutti i risultati
+      //elem arr[tot_file_num]; //array che conterra tutti i risultati
       elem* arr = NULL;
-      arr = (elem*)calloc(sizeof(elem), tot_files);
+      arr = (elem*)calloc(sizeof(elem), tot_file_num);
       if (arr == NULL){
             LOG_ERR(errno, "calloc");
             exit(EXIT_FAILURE);
       }
-
-      int j = tot_files;
+      
+      int rest_files = -1;
+      int i = 0;
+      int j = tot_file_num;
       size_t op;
-      while(j > 0){
+      while(j > 0 && rest_files != 0){
             //riceve: operazione
             *buf = 0;
-            readn(sockfd, buf, sizeof(long int));
+            readn(sockfd, buf, sizeof(size_t));
             op = *buf;
             //invia: conferma ricezione
             *buf = 0;
@@ -100,7 +101,7 @@ void collector()
             if (op == 1){
                   //printf("(collector) OPERAZIONE 1\n"); //DEBUG
                   //ordinamento
-                  qsort(arr, tot_files, sizeof(elem), cmp_func);
+                  qsort(arr, tot_file_num, sizeof(elem), cmp_func);
                   //stampa array fino al j-esimo
                   for(int k = 0; k < j; k++)
                         printf("%ld %s\n", arr[k].res, arr[k].path);
@@ -138,25 +139,41 @@ void collector()
                   //memorizza in array
                   strncpy(arr[i].path, str, len_s);
                   (arr[i].path)[len_s] = '\0';
-                  arr[i].res = result; 
+                  arr[i].res = result;
                   i++; j--;
                   if (str) free(str);
+                  if (rest_files > 0) rest_files--;
             }
+            //segnale di chisura
+            //riceve il numero di elementi rimasti in coda da elaborare
+            if (op == 3){
+                  //riceve: remain
+                  rest_files;
+	            readn(sockfd, buf, sizeof(size_t));
+                  rest_files = *buf; //cast?
+                  //invia: conferma ricezione
+                  *buf = 0;
+	            writen(sockfd, buf, sizeof(size_t));
+                 printf("RICEVUTO rest_files=%d\n", rest_files);
+            }
+
       }
-      //printf("(collector) terminazione\n"); //DEBUG
-      //printf("(collector) stampa risultati\n"); //DEBUG
+      printf("(collector) stampa risultati\n"); //DEBUG
       
+      size_t final_dim_arr = tot_file_num - i;
+
       //ordina risultati
-      qsort(arr, tot_files, sizeof(elem), cmp_func);
+      qsort(arr, tot_file_num, sizeof(elem), cmp_func);
       
       //stampa risultati
-      for(int k = 0; k < tot_files; k++)
+      for(int k = final_dim_arr; k < tot_file_num; k++){
             printf("%ld %s\n", arr[k].res, arr[k].path);
+      }
       
       //chiusura normale
-      
       if (arr) free(arr);
       if (buf) free(buf);
+      //printf("(collector) terminazione\n"); //DEBUG
       exit(EXIT_SUCCESS);
       
       //chiusura errore
