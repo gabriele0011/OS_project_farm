@@ -7,9 +7,10 @@ void insert_node(node** list, const char* string)
       node* new = (node*)malloc(sizeof(node)); //inserire controllo malloc
       //setting
       if(!new){ LOG_ERR(errno, "malloc in insert node fallita");}
+      
       size_t len_string = strlen(string);
-      new->str = (char*)calloc(sizeof(char), len_string);
-      if(!new->str) {LOG_ERR(errno, "calloc in insert node fallita\n");}
+      new->str = (char*)calloc(len_string+1, sizeof(char));
+      if (!new->str){ LOG_ERR(errno, "calloc in insert node fallita\n"); }
       strncpy(new->str, string, len_string);
       new->str[len_string] = '\0';
 

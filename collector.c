@@ -128,8 +128,9 @@ void collector()
 
                   //riceve: str
                   char* str = NULL;
-                  str = calloc(sizeof(char), len_s);
+                  str = calloc(len_s+1, sizeof(char));
 	            readn(sockfd, str, sizeof(char)*len_s);
+                  str[len_s] = '\0';
                   //invia: conferma ricezione
                   *buf = 0;
 	            writen(sockfd, buf, sizeof(size_t));
@@ -154,7 +155,7 @@ void collector()
                   //invia: conferma ricezione
                   *buf = 0;
 	            writen(sockfd, buf, sizeof(size_t));
-                 printf("RICEVUTO rest_files=%d\n", rest_files);
+                 //printf("RICEVUTO rest_files=%d\n", rest_files);
             }
 
       }
@@ -173,12 +174,13 @@ void collector()
       //chiusura normale
       if (arr) free(arr);
       if (buf) free(buf);
-      //printf("(collector) terminazione\n"); //DEBUG
+      printf("(collector) terminazione SUCCESSO\n"); //DEBUG
       exit(EXIT_SUCCESS);
       
       //chiusura errore
       main_clean:
       //if (arr) free(arr);
       if (buf) free(buf);
+      printf("(collector) terminazione FALLITO\n"); //DEBUG
       exit(EXIT_FAILURE);
 }

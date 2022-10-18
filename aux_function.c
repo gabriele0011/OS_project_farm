@@ -64,7 +64,7 @@ void writen(int fd, long int* buf, size_t bytes)
 	N = write(fd, buf, bytes);
 	if (N != bytes){
 		LOG_ERR(errno, "write fallita");
-		printf("chi è? buf=%ld - bytes=%zu\n", *buf, bytes);
+		printf("chi è? buf=%lu - bytes=%zu ret_write=%d\n", *buf, bytes, N);
 		//exit(EXIT_FAILURE);
 	}
 	return;

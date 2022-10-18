@@ -10,7 +10,7 @@ int enqueue(t_queue** queue, char* string)
 	ec_null_r((new = malloc(sizeof(t_queue))), "cache: malloc cache_writeFile fallita", -1);
 	new->next = NULL;
 	size_t len_str = strlen(string);
-	new->data = calloc(len_str, sizeof(char));
+	new->data = calloc(len_str+1, sizeof(char));
 	strncpy(new->data, string, len_str);
 	(new->data)[len_str] = '\0';
 	
@@ -56,7 +56,7 @@ char* dequeue(t_queue** queue)
 		t_queue* aux = *queue;
 		*queue = NULL;
 		size_t len_s = strlen(aux->data);
-		char* s = calloc(len_s, sizeof(char));
+		char* s = calloc(len_s+1, sizeof(char));
 		strncpy(s, aux->data, len_s);
 		s[len_s] = '\0';
 		pthread_mutex_destroy(&aux->mtx);
@@ -85,7 +85,7 @@ char* dequeue(t_queue** queue)
 	}
 	prev->next = NULL;
 	size_t len_s = strlen(curr->data);
-	char* s = calloc(len_s, sizeof(char));
+	char* s = calloc(len_s+1, sizeof(char));
 	strncpy(s, curr->data, len_s);
 	s[len_s] = '\0';
 	mutex_unlock(&(prev->mtx), "cache: unlock fallita in cache_enqueue");

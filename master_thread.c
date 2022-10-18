@@ -212,7 +212,7 @@ void MasterWorker()
 	if (buf) free(buf);
 	if (files_list) dealloc_list(&files_list);
 	if (conc_queue) dealloc_queue(&conc_queue);
-    //printf("(master_worker) terminazione SUCCESSO\n"); //DEBUG
+    printf("(master_worker) terminazione SUCCESSO\n"); //DEBUG
 	exit(EXIT_SUCCESS);
 
 	//chiususa server in caso di errore
@@ -222,6 +222,8 @@ void MasterWorker()
 	if (thread_workers_arr) free(thread_workers_arr);
 	if (files_list) dealloc_list(&files_list);
 	if (conc_queue) dealloc_queue(&conc_queue);
+	    printf("(master_worker) terminazione FALLITO\n"); //DEBUG
+
 	exit(EXIT_FAILURE);
 	}
 }
