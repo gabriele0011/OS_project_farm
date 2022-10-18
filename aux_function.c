@@ -47,25 +47,24 @@ long is_number(const char* s)
    	if (e != NULL && *e == (char)0) return val; 
 	return -1;
 }
-void readn(int fd, long int* buf, size_t bytes)
+void read_n(int fd, long int* buf, size_t bytes)
 {
 	int N;
 	N = read(fd, buf, bytes);
-	if (N != bytes){
-		LOG_ERR(errno, "write fallita");
-		//exit(EXIT_FAILURE);
+	if (N != bytes && errno != EINTR){
+		LOG_ERR(errno, "read fallita");
+		exit(EXIT_FAILURE);
 	}
 	return;
 }
 
-void writen(int fd, long int* buf, size_t bytes)
+void write_n(int fd, long int* buf, size_t bytes)
 {
 	int N;
 	N = write(fd, buf, bytes);
-	if (N != bytes){
+	if (N != bytes && errno != EINTR){
 		LOG_ERR(errno, "write fallita");
-		printf("chi è? buf=%lu - bytes=%zu ret_write=%d\n", *buf, bytes, N);
-		//exit(EXIT_FAILURE);
+		exit(EXIT_FAILURE);
 	}
 	return;
 }

@@ -12,30 +12,30 @@ int send_res(long int result, char* path)
 
 	//invia: tipo operazione 2=invio result+path
 	*buf = 2;
-	writen(fd, buf, sizeof(size_t));
+	write_n(fd, buf, sizeof(size_t));
 	//riceve: conferma ricezione
-	readn(fd, buf, sizeof(size_t));
+	read_n(fd, buf, sizeof(size_t));
 	if(*buf != 0) goto sr_clean;
 	
 	//invia: result
 	*buf = result;
-	writen(fd, buf, sizeof(long int));
+	write_n(fd, buf, sizeof(long int));
 	//riceve: conferma ricezione
-	readn(fd, buf, sizeof(size_t));
+	read_n(fd, buf, sizeof(size_t));
 	if(*buf != 0) goto sr_clean;
 
 	//invia: len file name
 	size_t len_s = strlen(path);
 	*buf = len_s;
-	writen(fd, buf, sizeof(size_t));
+	write_n(fd, buf, sizeof(size_t));
 	//riceve: conferma ricezione
-	readn(fd, buf, sizeof(size_t));
+	read_n(fd, buf, sizeof(size_t));
 	if(*buf != 0) goto sr_clean;
 
 	//invia file name
-	write(fd, path, sizeof(char)*len_s);
+	write_n(fd, path, sizeof(char)*len_s);
 	//riceve: conferma ricezione
-	readn(fd, buf, sizeof(size_t));
+	read_n(fd, buf, sizeof(size_t));
 	if(*buf != 0) goto sr_clean;
 	
 	mutex_unlock(&op_mtx, "send_res");
