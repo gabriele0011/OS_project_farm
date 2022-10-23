@@ -1,12 +1,9 @@
-
-//var globali generali
-//extern node* files_list;
 extern int fd;
 extern int fd_skt;
 
 //extern t_queue* conc_queue;
 extern size_t tot_files;
-extern size_t queue_capacity;
+extern size_t q_curr_capacity;
 
 //parser global var
 extern size_t n_thread;
