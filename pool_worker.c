@@ -39,8 +39,8 @@ int send_res(long int result, char* path)
 	if(*buf != 0) goto sr_clean;
 	
 	mutex_unlock(&op_mtx, "send_res");
-	//printf("send_res eseguita\n"); //DEBUG
 	if (buf) free(buf);
+	//printf("send_res eseguita\n"); //DEBUG
 	return 0;
 
 	sr_clean:
@@ -97,7 +97,6 @@ int thread_func2(char* path)
 void* thread_func1(void *arg)
 {
 	//printf("thread = %d\n", gettid());
-	//printf_queue(conc_queue);
 	int err;
 	char* buf = NULL;
 
@@ -110,8 +109,8 @@ void* thread_func1(void *arg)
 				exit(EXIT_FAILURE);
 			}
 		}
-		//printf("queue_capacity=%zu\n", queue_capacity); //DEBUG
-		queue_capacity--;
+		//printf("q_curr_capacity=%zu\n", q_curr_capacity); //DEBUG
+		q_curr_capacity--;
 		mutex_unlock(&mtx, "thread_func1: unlock fallita");
 		if (closing || child_term) break;
 		//funzione che opera sul file

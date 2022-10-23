@@ -18,24 +18,7 @@ void collector()
       long int* buf = NULL;
 	buf = (long int*)malloc(sizeof(long int));
       int k;
-
-      ///////////////// SOCKET /////////////////
-	int sockfd;
-      struct sockaddr_un sa;
-	sa.sun_family = AF_UNIX;
-	size_t len = strlen(SOCK_NAME);
-	strncpy(sa.sun_path, SOCK_NAME, len);
-	sa.sun_path[len] = '\0';
-
-	if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1){
-            LOG_ERR(errno, "(collector) socket");
-            goto c_clean;
-      }
-      if (connect(sockfd, (struct sockaddr*)&sa, sizeof(sa)) == -1){
-	    LOG_ERR(errno, "(collector) connect");
-          goto c_clean;
-      }
-	//printf("(collector) socket: %s - attivo\n", sa.sun_path); //DEBUG
+      elem* arr = NULL;
 
       ///////////////// SEGNALI /////////////////
       struct sigaction s;
@@ -63,10 +46,41 @@ void collector()
       s4.sa_handler = SIG_IGN;
 	ec_meno1_c(sigaction(SIGUSR1, &s4, NULL), "(main) sigaction fallita", c_clean);
 
-	struct sigaction s5;
-	memset(&s5, 0, sizeof(struct sigaction));
+      struct sigaction s5;
+      memset(&s5, 0, sizeof(struct sigaction));
 	s5.sa_handler = SIG_IGN;
-    
+	ec_meno1_c(sigaction(SIGPIPE, &s5, NULL), "(MasterWorker) sigaction fallita", c_clean);
+
+	//gestione del segnale SUIGPIPE ereditata dal processo padre
+
+      //azzera signal mask
+      sigset_t set;
+	ec_meno1_c(sigemptyset(&set), "(collector) sigemptyset fallita", c_clean);
+      int err;
+	if ((err = pthread_sigmask(SIG_SETMASK, &set, NULL)) != 0){
+		LOG_ERR(err, "(collector) pthread_signmask fallita");
+		goto c_clean;
+	}
+
+      ///////////////// SOCKET /////////////////
+	int sockfd;
+      struct sockaddr_un sa;
+	sa.sun_family = AF_UNIX;
+	size_t len = strlen(SOCK_NAME);
+	strncpy(sa.sun_path, SOCK_NAME, len);
+	sa.sun_path[len] = '\0';
+
+	if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1){
+            LOG_ERR(errno, "(collector) socket");
+            goto c_clean;
+      }
+      if (connect(sockfd, (struct sockaddr*)&sa, sizeof(sa)) == -1){
+	    LOG_ERR(errno, "(collector) connect");
+          goto c_clean;
+      }
+	//printf("(collector) socket: %s - attivo\n", sa.sun_path); //DEBUG
+
+
       //riceve: numero di file reg. in input
       size_t tot_files = 0;
 	read_n(sockfd, buf, sizeof(size_t));
@@ -77,18 +91,17 @@ void collector()
 
       //elem arr[tot_files]; //array che conterra tutti i risultati
       if (tot_files == 0) goto c_clean;
-      elem* arr = NULL;
       arr = (elem*)calloc(tot_files, sizeof(elem));
       if (arr == NULL){
             LOG_ERR(errno, "calloc");
             exit(EXIT_FAILURE);
       }
       
-      int rest_files = -1;
+      int rem_files = -1;
       int i = 0;
       int j = tot_files;
       size_t op;
-      while(j > 0 && rest_files != 0){
+      while(j > 0 && rem_files != 0){
             mutex_lock(&c_mtx, "lock fallita");
             //riceve: operazione
             *buf = 0;
@@ -141,14 +154,14 @@ void collector()
                   arr[i].res = result;
                   i++; j--;
                   if (str) free(str);
-                  if (rest_files > 0) rest_files--;
+                  if (rem_files > 0) rem_files--;
             }
             //chisura
             if (op == 3){
                   //riceve: num. di elem. ancora da elaborare
-                  rest_files;
+                  rem_files;
 	            read_n(sockfd, buf, sizeof(size_t));
-                  rest_files = *buf;
+                  rem_files = *buf;
                   //invia: conferma ricezione
                   *buf = 0;
 	            write_n(sockfd, buf, sizeof(size_t));
@@ -166,6 +179,9 @@ void collector()
       }
       
       //chiusura normale
+      if (close(sockfd) != 0){
+      	LOG_ERR(errno, "(Collector) close fallita");
+      }
       if (arr) free(arr);
       if (buf) free(buf);
       exit(EXIT_SUCCESS);

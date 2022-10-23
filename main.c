@@ -22,7 +22,7 @@ int fd_skt;
 node* files_list = NULL;
 size_t tot_files = 0;
 t_queue* conc_queue = NULL;
-size_t queue_capacity = 0;
+size_t q_curr_capacity = 0;
 
 //segnali
 volatile sig_atomic_t sig_usr1 = 0;
