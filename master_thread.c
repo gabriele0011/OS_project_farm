@@ -150,7 +150,7 @@ void MasterWorker()
 		size_t rem_files = tot_files; //files ancora da elaborare
 
 		///////////////// MasterWorker LOOP /////////////////
-		while (!closing && !child_term){
+		while (!child_term){
 			if (sig_usr1){
 				//notificare al processo collector di stampare i risultati ottenuti fino ad ora
 				*buf = 1;
@@ -203,6 +203,7 @@ void MasterWorker()
 				//riceve: conferma ricezione
 				read_n(fd, buf, sizeof(size_t));
 				if (*buf != 0) goto mt_clean;
+				break;
 			}
 		}
 
@@ -252,6 +253,10 @@ void MasterWorker()
 
 		//chiususa in caso di errore
 		mt_clean:
+		//eliminazione socket file
+		if (sa.sun_path != NULL) remove(SOCK_NAME);
+		if (fd != -1) close(fd);
+		if (fd_skt != -1) close(fd_skt);
 		if (thread_workers_arr) free(thread_workers_arr);
 		if (buf) free(buf);
 		if (thread_workers_arr) free(thread_workers_arr);

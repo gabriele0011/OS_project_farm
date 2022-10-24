@@ -33,7 +33,7 @@ int send_res(long int result, char* path)
 	if(*buf != 0) goto sr_clean;
 
 	//invia file name
-	write_n(fd, path, sizeof(char)*len_s);
+	write(fd, path, sizeof(char)*len_s);
 	//riceve: conferma ricezione
 	read_n(fd, buf, sizeof(size_t));
 	if(*buf != 0) goto sr_clean;

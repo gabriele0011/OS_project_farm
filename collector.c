@@ -142,7 +142,7 @@ void collector()
                   //riceve: str
                   char* str = NULL;
                   str = calloc(len_s+1, sizeof(char));
-	            read_n(sockfd, str, sizeof(char)*len_s);
+	            read(sockfd, str, sizeof(char)*len_s);
                   str[len_s] = '\0';
                   //invia: conferma ricezione
                   *buf = 0;
@@ -152,6 +152,7 @@ void collector()
                   strncpy(arr[i].path, str, len_s);
                   (arr[i].path)[len_s] = '\0';
                   arr[i].res = result;
+                  //printf("save: result=%ld path:%s\n", result, str); //DEBUG
                   i++; j--;
                   if (str) free(str);
                   if (rem_files > 0) rem_files--;
@@ -159,7 +160,7 @@ void collector()
             //chisura
             if (op == 3){
                   //riceve: num. di elem. ancora da elaborare
-                  rem_files;
+                  rem_files = 0;
 	            read_n(sockfd, buf, sizeof(size_t));
                   rem_files = *buf;
                   //invia: conferma ricezione

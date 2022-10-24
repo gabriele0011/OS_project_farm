@@ -16,8 +16,8 @@ size_t q_len = 8;
 char* dir_name = NULL;
 int ms_delay = 0;
 //var socket
-int fd;
-int fd_skt;
+int fd = -1;
+int fd_skt = -1;
 //var globali lista e coda
 node* files_list = NULL;
 size_t tot_files = 0;
