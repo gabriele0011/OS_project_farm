@@ -47,7 +47,7 @@ long is_number(const char* s)
    	if (e != NULL && *e == (char)0) return val; 
 	return -1;
 }
-void read_n(int fd, long int* buf, size_t bytes)
+void read_n(int fd, void* buf, size_t bytes)
 {
 	int N;
 	N = read(fd, buf, bytes);

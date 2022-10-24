@@ -1,7 +1,11 @@
 #include "master_thread.h"
 
+
 extern t_queue* conc_queue;
 extern node* files_list;
+
+int fd_pipe_read;
+int fd_pipe_write;
 
 //signal handlers
 static void handler_sigchld(int signum){
@@ -33,9 +37,12 @@ static void handler_sigusr1(int signum){
 void MasterWorker()
 {
 	int err;
-	long int* buf = NULL;
-	buf = (long int*)malloc(sizeof(long int));
-	
+	long int* long_buf = NULL;
+	long_buf = (long int*)malloc(sizeof(long int));
+	size_t* sizet_buf = NULL;
+	sizet_buf = (size_t*)malloc(sizeof(size_t));
+
+
 	///////////////// SEGNALI /////////////////
 	struct sigaction s; 
 	sigset_t set;
@@ -63,6 +70,16 @@ void MasterWorker()
 		goto mt_clean;
 	}
 
+	///////////////// PIPE /////////////////
+	// creazione pipe per socket
+	int pfd[2];
+	if ((err=pipe(pfd)) == -1){
+		LOG_ERR(errno, "(MasterWorker) pipe fallita"); 
+		goto mt_clean;
+	}
+	fd_pipe_read = pfd[0];
+	fd_pipe_write = pfd[1];
+
 	///////////////// PROC. COLLECTOR /////////////////
 	pid_t pid = fork();
 	if (pid < 0){ //fork 1 fallita
@@ -70,7 +87,7 @@ void MasterWorker()
 		goto mt_clean;
 	}
 	if (pid == 0){ //proc. figlio 1
-			collector();
+			collector(fd_pipe_read);
 	}else{
 	
 		///////////////// SEGNALI /////////////////
@@ -120,6 +137,8 @@ void MasterWorker()
 		}
 
 		//////////////// SOCKET /////////////////
+		
+
 		struct sockaddr_un sa;
 		sa.sun_family = AF_UNIX;
 		size_t len = strlen(SOCK_NAME);
@@ -129,8 +148,15 @@ void MasterWorker()
 		ec_meno1_c((fd_skt = socket(AF_UNIX, SOCK_STREAM, 0)), "(MasterWorker) socket fallita", mt_clean);
 		ec_meno1_c(bind(fd_skt, (struct sockaddr*)&sa, sizeof(sa)), "(MasterWorker) bind fallita", mt_clean);
 		ec_meno1_c(listen(fd_skt, SOMAXCONN), "(MasterWorker) listen fallita", mt_clean);
+
+		// notifica socket creata
+		*buf=1;
+		if((err=write(fd_pipe_write, (void*)buf, sizeof(long)))==-1)
+			{LOG_ERR(EPIPE, "master: writing to the pipe"); goto mt_clean;}
+		
 		ec_meno1_c((fd = accept(fd_skt, NULL, 0)), "(MasterWorker) accept fallita", mt_clean);
-		//printf("(MasterWorker) socket: %s - attivo\n", sa.sun_path); //DEBUG
+		// printf("(MasterWorker) socket: %s - attivo\n", sa.sun_path); //DEBUG
+
     
 
 		///////////////// THREAD POOL  /////////////////
@@ -140,11 +166,11 @@ void MasterWorker()
 
 
 		//comunica: numero di file reg. input
-		*buf = tot_files;
-		write_n(fd, buf, sizeof(size_t));
+		*sizet_buf = tot_files;
+		write_n(fd, sizet_buf, sizeof(size_t));
 		//riceve: conferma ricezione 
-		read_n(fd, buf, sizeof(size_t));
-		if (*buf != 0) goto mt_clean;
+		read_n(fd, sizet_buf, sizeof(size_t));
+		if (*sizet_buf != 0) goto mt_clean;
 
 
 		size_t rem_files = tot_files; //files ancora da elaborare
@@ -153,10 +179,10 @@ void MasterWorker()
 		while (!child_term){
 			if (sig_usr1){
 				//notificare al processo collector di stampare i risultati ottenuti fino ad ora
-				*buf = 1;
-				write_n(fd, buf, sizeof(size_t));
-				read_n(fd, buf, sizeof(size_t));
-				if (*buf != 0) goto mt_clean;
+				*sizet_buf = PRINT;
+				write_n(fd, sizet_buf, sizeof(size_t));
+				read_n(fd, sizet_buf, sizeof(size_t));
+				if (*sizet_buf != 0) goto mt_clean;
 			}
 			if (!closing){
 				if (q_curr_capacity < q_len && rem_files > 0){
@@ -191,18 +217,18 @@ void MasterWorker()
 			}
 			if (closing){
 				//comunica: segnale di chiusura -> 3
-				*buf = 3;
-				write_n(fd, buf, sizeof(size_t));
+				*sizet_buf = CLOSE;
+				write_n(fd, sizet_buf, sizeof(size_t));
 				//riceve: conferma ricezione
-				read_n(fd, buf, sizeof(size_t));
-				if (*buf != 0) goto mt_clean;
+				read_n(fd, sizet_buf, sizeof(size_t));
+				if (*sizet_buf != 0) goto mt_clean;
 
 				//comunica: num. elem. in coda ancora da elaborare
-				*buf = q_curr_capacity;
-				write_n(fd, buf, sizeof(size_t));
+				*sizet_buf = q_curr_capacity;
+				write_n(fd, sizet_buf, sizeof(size_t));
 				//riceve: conferma ricezione
-				read_n(fd, buf, sizeof(size_t));
-				if (*buf != 0) goto mt_clean;
+				read_n(fd, sizet_buf, sizeof(size_t));
+				if (*sizet_buf != 0) goto mt_clean;
 				break;
 			}
 		}

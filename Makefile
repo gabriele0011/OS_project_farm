@@ -1,7 +1,7 @@
 SHELL				= /bin/bash
 CC					= gcc
 INCLUDES			= -I ./headers
-FLAGS				= -g -Wall -pedantic 
+FLAGS				= -g -Wall -pedantic -pthread
 
 farm_dep			= ./src/aux_function.c ./src/list.c ./src/conc_queue.c ./src/pool_worker.c ./src/collector.c ./src/master_thread.c 
 

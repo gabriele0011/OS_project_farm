@@ -1,6 +1,7 @@
 #include "header_file.h"
 #include "error_ctrl.h"
 #include "aux_function.h"
+#include "global_var.h"
 
 
 #define SOCK_NAME "farm.sck"

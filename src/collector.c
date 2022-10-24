@@ -12,11 +12,13 @@ int cmp_func(const void*a, const void* b)
 }
 
 
-void collector()
+void collector(int pipe_read)
 {
       //printf("(collector) pid=%d\n", getpid()); //DEBUG
-      long int* buf = NULL;
-	buf = (long int*)malloc(sizeof(long int));
+      long int* long_buf = NULL;
+	long_buf = (long int*)malloc(sizeof(long int));
+      size_t* sizet_buf = NULL; 
+      sizet_buf = (size_t*)malloc(sizeof(size_t));
       int k;
       elem* arr = NULL;
 
@@ -63,6 +65,14 @@ void collector()
 	}
 
       ///////////////// SOCKET /////////////////
+
+      // aspetto la creazione della socket nel processo master
+      *long_buf = 0;
+      while(*buf!=1) {
+            msleep(500);
+            read_n(pipe_read, long_buf, sizeof(long int));
+      }
+
 	int sockfd;
       struct sockaddr_un sa;
 	sa.sun_family = AF_UNIX;
@@ -83,11 +93,11 @@ void collector()
 
       //riceve: numero di file reg. in input
       size_t tot_files = 0;
-	read_n(sockfd, buf, sizeof(size_t));
-      tot_files = *buf;
+	read_n(sockfd, sizet_buf, sizeof(size_t));
+      tot_files = *sizet_buf;
       //invia: conferma ricezione
-      *buf = 0;
-	write_n(sockfd, buf, sizeof(size_t));
+      *sizet_buf = 0;
+	write_n(sockfd, sizet_buf, sizeof(size_t));
 
       //elem arr[tot_files]; //array che conterra tutti i risultati
       if (tot_files == 0) goto c_clean;
@@ -101,18 +111,18 @@ void collector()
       int i = 0;
       int j = tot_files;
       size_t op;
-      while(j > 0 && rem_files != 0){
+      while (j > 0 && rem_files != 0){
             mutex_lock(&c_mtx, "lock fallita");
             //riceve: operazione
-            *buf = 0;
-            read_n(sockfd, buf, sizeof(size_t));
-            op = *buf;
+            *sizet_buf = 0;
+            read_n(sockfd, sizet_buf, sizeof(size_t));
+            op = *sizet_buf;
             //invia: conferma ricezione
-            *buf = 0;
-            write_n(sockfd, buf, sizeof(size_t));
+            *sizet_buf = 0;
+            write_n(sockfd, sizet_buf, sizeof(size_t));
 
             //stampa i risultati fino a questo istante
-            if (op == 1){
+            if (op == PRINT){
                   size_t temp_num_files = tot_files - i;
                   //ordina risultati
                   qsort(arr, tot_files, sizeof(elem), cmp_func);
@@ -122,22 +132,22 @@ void collector()
       }
             }
             //ricezione di un nuovo risultato+path
-            if (op == 2){
+            if (op == SEND_RES){
                   //riceve: risultato
                   long int result;
-	            read_n(sockfd, buf, sizeof(long int));
-                  result = *buf;
+	            read_n(sockfd, long_buf, sizeof(long int));
+                  result = *long_buf;
                   //invia: conferma ricezione
-                  *buf = 0;
-	            write_n(sockfd, buf, sizeof(size_t));
+                  *sizet_buf = 0;
+	            write_n(sockfd, sizet_buf, sizeof(size_t));
 
                   //riceve: lung. str
                   size_t len_s;
-	            read_n(sockfd, buf, sizeof(size_t));
+	            read_n(sockfd, sizet_buf, sizeof(size_t));
                   len_s = *buf; //cast?
                   //invia: conferma ricezione
-                  *buf = 0;
-	            write_n(sockfd, buf, sizeof(size_t));
+                  *sizet_buf = 0;
+	            write_n(sockfd, sizet_buf, sizeof(size_t));
 
                   //riceve: str
                   char* str = NULL;
@@ -145,8 +155,8 @@ void collector()
 	            read(sockfd, str, sizeof(char)*len_s);
                   str[len_s] = '\0';
                   //invia: conferma ricezione
-                  *buf = 0;
-	            write_n(sockfd, buf, sizeof(size_t));
+                  *sizet_buf = 0;
+	            write_n(sockfd, sizet_buf, sizeof(size_t));
 
                   //memorizza in array
                   strncpy(arr[i].path, str, len_s);
@@ -158,14 +168,14 @@ void collector()
                   if (rem_files > 0) rem_files--;
             }
             //chisura
-            if (op == 3){
+            if (op == CLOSE){
                   //riceve: num. di elem. ancora da elaborare
                   rem_files = 0;
-	            read_n(sockfd, buf, sizeof(size_t));
-                  rem_files = *buf;
+	            read_n(sockfd, sizet_buf, sizeof(size_t));
+                  rem_files = *sizet_buf;
                   //invia: conferma ricezione
-                  *buf = 0;
-	            write_n(sockfd, buf, sizeof(size_t));
+                  *sizet_buf = 0;
+	            write_n(sockfd, sizet_buf, sizeof(size_t));
             }
             mutex_unlock(&c_mtx, "lock fallita");
       }
