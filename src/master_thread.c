@@ -4,9 +4,6 @@
 //extern t_queue* conc_queue;
 //extern node* files_list;
 
-int fd_pipe_read = -1;
-int fd_pipe_write = -1;
-
 //signal handlers
 static void handler_sigchld(int signum){
 	child_term = 1;
@@ -69,16 +66,6 @@ void MasterWorker()
 		goto mt_clean;
 	}
 
-	///////////////// PIPE /////////////////
-	// creazione pipe per socket
-	int pfd[2];
-	if ((err = pipe(pfd)) == -1){
-		LOG_ERR(errno, "(MasterWorker) pipe"); 
-		goto mt_clean;
-	}
-	fd_pipe_read = pfd[0];
-	fd_pipe_write = pfd[1];
-
 	///////////////// PROC. COLLECTOR /////////////////
 	pid_t pid = fork();
 	if (pid < 0){
@@ -86,9 +73,8 @@ void MasterWorker()
 		goto mt_clean;
 	}
 	if (pid == 0){ //proc. figlio
-			collector(fd_pipe_read);
+			collector();
 	}else{
-	
 		///////////////// SEGNALI /////////////////
 		//gestori permantenti
 		struct sigaction s1;
@@ -145,22 +131,14 @@ void MasterWorker()
 		ec_meno1_c((fd_skt = socket(AF_UNIX, SOCK_STREAM, 0)), "(MasterWorker) socket", mt_clean);
 		ec_meno1_c(bind(fd_skt, (struct sockaddr*)&sa, sizeof(sa)), "(MasterWorker) bind", mt_clean);
 		ec_meno1_c(listen(fd_skt, SOMAXCONN), "(MasterWorker) listen", mt_clean);
-
-		// notifica socket creata
-		*long_buf = 1;
-		if ((err = write(fd_pipe_write, (void*)long_buf, sizeof(long))) ==- 1){
-			LOG_ERR(EPIPE, "(MasterWorker) write pipe"); 
-			goto mt_clean;
-		}
-		
 		ec_meno1_c((fd = accept(fd_skt, NULL, 0)), "(MasterWorker) accept", mt_clean);
 		// printf("(MasterWorker) socket: %s - attivo\n", sa.sun_path); //DEBUG
 
 
 		///////////////// THREAD POOL  /////////////////
 		pthread_t* thread_workers_arr = NULL;
-    	thread_workers_arr = create_pool_worker();
-    	if (thread_workers_arr == NULL) goto mt_clean;
+    		thread_workers_arr = create_pool_worker();
+    		if (thread_workers_arr == NULL) goto mt_clean;
 
 		//comunica: numero di file reg. input
 		*sizet_buf = tot_files;
@@ -230,7 +208,6 @@ void MasterWorker()
 		}
 
 		///////////////// TERMINAZIONE /////////////////
-		//printf("CLOSING\n");
 		int status;
 		//attesa terminazione collector
 		if (waitpid(pid, &status, 0) == -1){
@@ -255,13 +232,11 @@ void MasterWorker()
 		}
 
 		//chiusura normale
-		//eliminazione socket file
-		if (remove(SOCK_NAME) != 0 ) { LOG_ERR(errno, "(MasterWorker) rimozione file socket"); }
-		if (close(fd_skt) != 0){ LOG_ERR(errno, "(MasterWorker) close"); }
-		if (close(fd) != 0){ LOG_ERR(errno, "(MasterWorker) close"); }
+		if (remove(SOCK_NAME) != 0 ) { LOG_ERR(errno, "(MasterWorker) remove socket file"); }
+		if (fd_skt != -1) close(fd_skt);
+		if (fd != -1) close(fd);
 		if (long_buf) free(long_buf);
 		if (sizet_buf) free(sizet_buf);
-		if (fd_skt != -1) close(fd_skt);
 		if (fd != -1) close(fd);
 		if (thread_workers_arr) free(thread_workers_arr);
 		if (files_list) dealloc_list(&files_list);
@@ -270,12 +245,11 @@ void MasterWorker()
 
 		//chiususa in caso di errore
 		mt_clean:
-		//eliminazione socket file
-		if (remove(SOCK_NAME) != 0){ LOG_ERR(errno, "(MasterWorker) remove"); }
+		if (remove(SOCK_NAME) != 0){ LOG_ERR(errno, "(MasterWorker) remove socket file"); }
+		if (fd_skt != -1) close(fd_skt);
+		if (fd != -1) close(fd);
 		if (long_buf) free(long_buf);
 		if (sizet_buf) free(sizet_buf);
-		if (fd != -1) close(fd);
-		if (fd_skt != -1) close(fd_skt);
 		if (thread_workers_arr) free(thread_workers_arr);
 		if (files_list) dealloc_list(&files_list);
 		if (conc_queue) dealloc_queue(&conc_queue);

@@ -3,7 +3,7 @@
 #include "aux_function.h"
 #include "global_var.h"
 
-
+#define SLEEP_TIME_MS 400
 
 typedef struct _elem{
       char path[255];

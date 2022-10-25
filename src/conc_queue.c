@@ -1,5 +1,6 @@
 #include "conc_queue.h"
 
+
 pthread_mutex_t q_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 int enqueue(t_queue** queue, char* string)

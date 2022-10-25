@@ -1,6 +1,5 @@
 #include "collector.h"
 
-
 pthread_mutex_t c_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 int cmp_func(const void*a, const void* b)
@@ -11,8 +10,7 @@ int cmp_func(const void*a, const void* b)
       else return -1;
 }
 
-
-void collector(int pipe_read)
+void collector()
 {
       //printf("(collector) pid=%d\n", getpid()); //DEBUG
       long int* long_buf = NULL;
@@ -20,6 +18,7 @@ void collector(int pipe_read)
       size_t* sizet_buf = NULL; 
       sizet_buf = (size_t*)malloc(sizeof(size_t));
       int k;
+      int fd_skt = -1;
       elem* arr = NULL;
 
       ///////////////// SEGNALI /////////////////
@@ -65,123 +64,131 @@ void collector(int pipe_read)
 	}
 
       ///////////////// SOCKET /////////////////
-
-      // aspetto la creazione della socket nel processo master
-      *long_buf = 0;
-      while (*long_buf != 1){
-            msleep(500);
-            read_n(pipe_read, (void*)long_buf, sizeof(long int));
-      }
-
-	int sockfd;
       struct sockaddr_un sa;
 	sa.sun_family = AF_UNIX;
 	size_t len = strlen(SOCK_NAME);
 	strncpy(sa.sun_path, SOCK_NAME, len);
 	sa.sun_path[len] = '\0';
 
-	if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1){
+	if ((fd_skt = socket(AF_UNIX, SOCK_STREAM, 0)) == -1){
             LOG_ERR(errno, "(collector) socket");
             goto c_clean;
       }
-      if (connect(sockfd, (struct sockaddr*)&sa, sizeof(sa)) == -1){
-	    LOG_ERR(errno, "(collector) connect");
-          goto c_clean;
+
+      //timer connect setting and loop
+	struct timespec time1, time2, delta;
+      struct timespec abstime;
+	abstime.tv_sec = 10; //tempo assoluto 10 secondi
+
+      if (clock_gettime(CLOCK_REALTIME, &time1) == -1){
+            LOG_ERR(errno, "(collector) clock_gettime");
+            goto c_clean;
+      }
+      while (connect(fd_skt, (struct sockaddr*)&sa, sizeof(sa)) == -1){
+    	      if (errno == ENOENT){
+                  msleep(SLEEP_TIME_MS);
+                  // seconda misurazione
+                  ec_meno1_r(clock_gettime(CLOCK_REALTIME, &time2), "openConnection", -1);
+                  // calcola tempo trascorso tra time1 e time2 in delta
+                  sub_timespec(time1, time2, &delta);
+                  // controllo che non si sia superato il tempo assoluto dal primo tentativo di connessione
+                  if ((delta.tv_nsec >= abstime.tv_nsec && delta.tv_sec >= abstime.tv_sec) || delta.tv_sec >= abstime.tv_sec){
+                        LOG_ERR(ETIMEDOUT, "(collector) connect");
+                        goto c_clean;
+                  }
+            }
       }
 	//printf("(collector) socket: %s - attivo\n", sa.sun_path); //DEBUG
 
-
       //riceve: numero di file reg. in input
       size_t tot_files = 0;
-	read_n(sockfd, (void*)sizet_buf, sizeof(size_t));
+	read_n(fd_skt, (void*)sizet_buf, sizeof(size_t));
       tot_files = *sizet_buf;
       //invia: conferma ricezione
       *sizet_buf = 0;
-	write_n(sockfd, (void*)sizet_buf, sizeof(size_t));
+	write_n(fd_skt, (void*)sizet_buf, sizeof(size_t));
 
-      //elem arr[tot_files]; //array che conterra tutti i risultati
       if (tot_files == 0) goto c_clean;
-      arr = (elem*)calloc(tot_files, sizeof(elem));
-      if (arr == NULL){
-            LOG_ERR(errno, "(collector) calloc");
-            exit(EXIT_FAILURE);
-      }
+      arr = (elem*)calloc(sizeof(elem), tot_files);
       
-      int rem_files = -1;
-      int i = 0;
-      int j = tot_files;
+      int rem_files = tot_files;
+      int count = 0;
+      int last_files = -1;
       size_t op;
-      while (j > 0 && rem_files != 0){
+      while (rem_files != 0 || last_files != 0){
             mutex_lock(&c_mtx, "(collector) lock");
             //riceve: operazione
             *sizet_buf = 0;
-            read_n(sockfd, (void*)sizet_buf, sizeof(size_t));
+            read_n(fd_skt, (void*)sizet_buf, sizeof(size_t));
             op = *sizet_buf;
             //invia: conferma ricezione
             *sizet_buf = 0;
-            write_n(sockfd, (void*)sizet_buf, sizeof(size_t));
+            write_n(fd_skt, (void*)sizet_buf, sizeof(size_t));
 
             //stampa i risultati fino a questo istante
             if (op == PRINT){
-                  size_t temp_num_files = tot_files - i;
                   //ordina risultati
-                  qsort(arr, tot_files, sizeof(elem), cmp_func);
+                  elem temp_arr[count];
+                  qsort(temp_arr, count, sizeof(elem), cmp_func);
                   //stampa risultati
-                  for (k = temp_num_files; k < tot_files; k++){
+                  for (k = 0; k < count; k++)
                         printf("%ld %s\n", arr[k].res, arr[k].path);
-      }
+                  
             }
             //ricezione di un nuovo risultato+path
             if (op == SEND_RES){
                   //riceve: risultato
                   long int result;
-	            read_n(sockfd, (void*)long_buf, sizeof(long int));
+	            read_n(fd_skt, (void*)long_buf, sizeof(long int));
                   result = *long_buf;
                   //invia: conferma ricezione
                   *sizet_buf = 0;
-	            write_n(sockfd, (void*)sizet_buf, sizeof(size_t));
+	            write_n(fd_skt, (void*)sizet_buf, sizeof(size_t));
 
                   //riceve: lung. str
                   size_t len_s;
-	            read_n(sockfd, (void*)sizet_buf, sizeof(size_t));
+	            read_n(fd_skt, (void*)sizet_buf, sizeof(size_t));
                   len_s = *sizet_buf; //cast?
                   //invia: conferma ricezione
                   *sizet_buf = 0;
-	            write_n(sockfd, (void*)sizet_buf, sizeof(size_t));
+	            write_n(fd_skt, (void*)sizet_buf, sizeof(size_t));
 
                   //riceve: str
                   char* str = NULL;
                   str = calloc(len_s+1, sizeof(char));
-	            read_n(sockfd, (void*)str, sizeof(char)*len_s);
+	            read_n(fd_skt, (void*)str, sizeof(char)*len_s);
                   str[len_s] = '\0';
                   //invia: conferma ricezione
                   *sizet_buf = 0;
-	            write_n(sockfd, (void*)sizet_buf, sizeof(size_t));
+	            write_n(fd_skt, (void*)sizet_buf, sizeof(size_t));
 
                   //memorizza in array
-                  strncpy(arr[i].path, str, len_s);
-                  (arr[i].path)[len_s] = '\0';
-                  arr[i].res = result;
+                  strncpy(arr[count].path, str, len_s);
+                  (arr[count].path)[len_s] = '\0';
+                  arr[count].res = result;
                   //printf("save: result=%ld path:%s\n", result, str); //DEBUG
-                  i++; j--;
+                  count++;
+                  rem_files--;
                   if (str) free(str);
-                  if (rem_files > 0) rem_files--;
             }
             //chisura
             if (op == CLOSE){
                   //riceve: num. di elem. ancora da elaborare
-                  rem_files = 0;
-	            read_n(sockfd, (void*)sizet_buf, sizeof(size_t));
-                  rem_files = *sizet_buf;
+	            read_n(fd_skt, (void*)sizet_buf, sizeof(size_t));
+                  last_files = *sizet_buf;
                   //invia: conferma ricezione
                   *sizet_buf = 0;
-	            write_n(sockfd, (void*)sizet_buf, sizeof(size_t));
+	            write_n(fd_skt, (void*)sizet_buf, sizeof(size_t));
             }
             mutex_unlock(&c_mtx, "(collector) lock");
       }
       
       //OUTPUT
-      size_t final_num_files = tot_files - i;
+      //calcola dim finale array di output
+      size_t final_num_files;
+      if(count == tot_files) final_num_files = tot_files;
+      else final_num_files = tot_files - rem_files;
+
       //ordina risultati
       qsort(arr, tot_files, sizeof(elem), cmp_func);
       //stampa risultati
@@ -189,11 +196,8 @@ void collector(int pipe_read)
             printf("%ld %s\n", arr[k].res, arr[k].path);
       }
       
-      //chiusura normale
-      if (close(sockfd) != 0){
-      	LOG_ERR(errno, "(collector) close");
-      }
-      if (arr) free(arr);
+      //if (arr) free(arr);
+      if (fd_skt != -1) close(fd_skt);
       if (long_buf) free(long_buf);
       if (sizet_buf) free(sizet_buf);
       exit(EXIT_SUCCESS);
@@ -201,6 +205,7 @@ void collector(int pipe_read)
       //chiusura errore
       c_clean:
       //if (arr) free(arr);
+      if (fd_skt != -1) close(fd_skt);
       if (long_buf) free(long_buf);
       if (sizet_buf) free(sizet_buf);
       exit(EXIT_FAILURE);
