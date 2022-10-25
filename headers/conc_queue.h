@@ -2,8 +2,6 @@
 #include "error_ctrl.h"
 
 //mutex coda concorrente richieste
-
-
 typedef struct node {
 	char* data;
 	struct node* next;
