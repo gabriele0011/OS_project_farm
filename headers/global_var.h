@@ -1,6 +1,8 @@
+#define SOCK_NAME "farm.sck"
 #define PRINT 1
 #define SEND_RES 2
 #define CLOSE 3
+
 
 extern int fd;
 extern int fd_skt;
@@ -24,7 +26,6 @@ extern volatile sig_atomic_t child_term;
 //var. mutex e cond.
 extern pthread_mutex_t mtx;
 extern pthread_cond_t cv;
-extern pthread_mutex_t op_mtx;
 
 // var. per pipe
 extern int fd_pipe_read;

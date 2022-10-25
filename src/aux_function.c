@@ -52,18 +52,18 @@ void read_n(int fd, void* buf, size_t bytes)
 	int N;
 	N = read(fd, buf, bytes);
 	if (N != bytes && errno != EINTR){
-		LOG_ERR(errno, "read fallita");
+		LOG_ERR(errno, "read");
 		exit(EXIT_FAILURE);
 	}
 	return;
 }
 
-void write_n(int fd, long int* buf, size_t bytes)
+void write_n(int fd, void* buf, size_t bytes)
 {
 	int N;
 	N = write(fd, buf, bytes);
 	if (N != bytes && errno != EINTR){
-		LOG_ERR(errno, "write fallita");
+		LOG_ERR(errno, "write");
 		exit(EXIT_FAILURE);
 	}
 	return;

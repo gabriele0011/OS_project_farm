@@ -10,44 +10,44 @@ int send_res(long int result, char* path)
 	size_t* sizet_buf = NULL;
 	sizet_buf = (size_t*)malloc(sizeof(size_t));
 	
-	mutex_lock(&op_mtx, "send_res");
+	mutex_lock(&op_mtx, "(pool_worker) send_res");
 
 	//invia: tipo operazione 2=invio result+path
 	*sizet_buf = SEND_RES;
-	write_n(fd, sizet_buf, sizeof(size_t));
+	write_n(fd, (void*)sizet_buf, sizeof(size_t));
 	//riceve: conferma ricezione
-	read_n(fd, sizet_buf, sizeof(size_t));
+	read_n(fd, (void*)sizet_buf, sizeof(size_t));
 	if(*sizet_buf != 0) goto sr_clean;
 	
 	//invia: result
 	*long_buf = result;
-	write_n(fd, long_buf, sizeof(long int));
+	write_n(fd, (void*)long_buf, sizeof(long int));
 	//riceve: conferma ricezione
-	read_n(fd, sizet_buf, sizeof(size_t));
+	read_n(fd, (void*)sizet_buf, sizeof(size_t));
 	if(*sizet_buf != 0) goto sr_clean;
 
 	//invia: len file name
 	size_t len_s = strlen(path);
 	*sizet_buf = len_s;
-	write_n(fd, sizet_buf, sizeof(size_t));
+	write_n(fd, (void*)sizet_buf, sizeof(size_t));
 	//riceve: conferma ricezione
-	read_n(fd, sizet_buf, sizeof(size_t));
+	read_n(fd, (void*)sizet_buf, sizeof(size_t));
 	if(*sizet_buf != 0) goto sr_clean;
 
 	//invia file name
-	write(fd, path, sizeof(char)*len_s);
+	write_n(fd, (void*)path, sizeof(char)*len_s);
 	//riceve: conferma ricezione
-	read_n(fd, sizet_buf, sizeof(size_t));
+	read_n(fd, (void*)sizet_buf, sizeof(size_t));
 	if(*sizet_buf != 0) goto sr_clean;
 	
-	mutex_unlock(&op_mtx, "send_res");
+	mutex_unlock(&op_mtx, "(pool_worker) send_res");
 	if (long_buf) free(long_buf);
 	if (sizet_buf) free(sizet_buf);
 	//printf("send_res eseguita\n"); //DEBUG
 	return 0;
 
 	sr_clean:
-	mutex_unlock(&op_mtx, "send_res");
+	mutex_unlock(&op_mtx, "(pool_worker) send_res");
 	if (long_buf) free(long_buf);
 	if (sizet_buf) free(sizet_buf);
 	return -1;
@@ -66,14 +66,14 @@ int thread_func2(char* path)
 	//apre il file in lettura
 	fd = fopen(path, "r");
 	if (fd == NULL) {
-   		perror("Errore in apertura del file");
+   		perror("(pool_worker) fopen");
    		exit(EXIT_FAILURE);
   	}
 
 	//dimensione del file
 	struct stat s;
 	if (lstat(path, &s) == -1){
-      	LOG_ERR(errno, "lstat");
+      	LOG_ERR(errno, "(pool_worker) lstat");
       	return -1;
     }
 	int N = s.st_size / sizeof(long int); //num. long int in un file di s.st_size byte
@@ -105,17 +105,17 @@ void* thread_func1(void *arg)
 	char* buf = NULL;
 
 	while (1){
-		mutex_lock(&mtx, "thread_func1: lock fallita");
+		mutex_lock(&mtx, "(pool_worker) lock ");
 		//pop richiesta dalla coda concorrente
 		while ( !(buf = (char*)dequeue(&conc_queue)) && !child_term){	
 			if ((err = pthread_cond_wait(&cv, &mtx)) != 0){
-				LOG_ERR(err, "thread_func1: phtread_cond_wait fallita");
+				LOG_ERR(err, "(pool_worker) phtread_cond_wait");
 				exit(EXIT_FAILURE);
 			}
 		}
 		//printf("q_curr_capacity=%zu\n", q_curr_capacity); //DEBUG
 		q_curr_capacity--;
-		mutex_unlock(&mtx, "thread_func1: unlock fallita");
+		mutex_unlock(&mtx, "(pool_worker) unlock");
 		if (child_term) break;
 		//funzione che opera sul file
 		thread_func2(buf);
@@ -135,7 +135,7 @@ pthread_t* create_pool_worker()
 	//pthread_t thread_workers_arr[n_thread];
 	for(int i = 0; i < n_thread; i++){
 		if ((err = pthread_create(&(thread_workers_arr[i]), NULL, thread_func1, NULL)) != 0){    
-			LOG_ERR(err, "pthread_create in server_manager");
+			LOG_ERR(err, "(pool_worker) pthread_create");
 			return NULL;
 		}
     }

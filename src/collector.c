@@ -26,41 +26,41 @@ void collector(int pipe_read)
       struct sigaction s;
 	memset(&s, 0, sizeof(struct sigaction));
       s.sa_handler = SIG_IGN;
-	ec_meno1_c(sigaction(SIGINT, &s, NULL), "(main) sigaction fallita", c_clean);
+	ec_meno1_c(sigaction(SIGINT, &s, NULL), "(collector) sigaction", c_clean);
 	
 	struct sigaction s1;
 	memset(&s1, 0, sizeof(struct sigaction));
       s1.sa_handler = SIG_IGN;
-      ec_meno1_c(sigaction(SIGQUIT, &s1, NULL), "(main) sigaction fallita", c_clean);
+      ec_meno1_c(sigaction(SIGQUIT, &s1, NULL), "(collector) sigaction", c_clean);
 	
 	struct sigaction s2;
 	memset(&s2, 0, sizeof(struct sigaction));
       s2.sa_handler = SIG_IGN;
-	ec_meno1_c(sigaction(SIGHUP, &s2, NULL), "(main) sigaction fallita", c_clean); 
+	ec_meno1_c(sigaction(SIGHUP, &s2, NULL), "(collector) sigaction", c_clean); 
 
 	struct sigaction s3;
 	memset(&s3, 0, sizeof(struct sigaction));
       s3.sa_handler = SIG_IGN;
-	ec_meno1_c(sigaction(SIGTERM, &s3, NULL), "(main) sigaction fallita", c_clean);  
+	ec_meno1_c(sigaction(SIGTERM, &s3, NULL), "(collector) sigaction", c_clean);  
 
 	struct sigaction s4;
 	memset(&s4, 0, sizeof(struct sigaction));
       s4.sa_handler = SIG_IGN;
-	ec_meno1_c(sigaction(SIGUSR1, &s4, NULL), "(main) sigaction fallita", c_clean);
+	ec_meno1_c(sigaction(SIGUSR1, &s4, NULL), "(collector) sigaction", c_clean);
 
       struct sigaction s5;
       memset(&s5, 0, sizeof(struct sigaction));
 	s5.sa_handler = SIG_IGN;
-	ec_meno1_c(sigaction(SIGPIPE, &s5, NULL), "(MasterWorker) sigaction fallita", c_clean);
+	ec_meno1_c(sigaction(SIGPIPE, &s5, NULL), "(collector) sigaction", c_clean);
 
 	//gestione del segnale SUIGPIPE ereditata dal processo padre
 
       //azzera signal mask
       sigset_t set;
-	ec_meno1_c(sigemptyset(&set), "(collector) sigemptyset fallita", c_clean);
+	ec_meno1_c(sigemptyset(&set), "(collector) sigemptyset", c_clean);
       int err;
 	if ((err = pthread_sigmask(SIG_SETMASK, &set, NULL)) != 0){
-		LOG_ERR(err, "(collector) pthread_signmask fallita");
+		LOG_ERR(err, "(collector) pthread_signmask");
 		goto c_clean;
 	}
 
@@ -68,9 +68,9 @@ void collector(int pipe_read)
 
       // aspetto la creazione della socket nel processo master
       *long_buf = 0;
-      while(*buf!=1) {
+      while (*long_buf != 1){
             msleep(500);
-            read_n(pipe_read, long_buf, sizeof(long int));
+            read_n(pipe_read, (void*)long_buf, sizeof(long int));
       }
 
 	int sockfd;
@@ -93,17 +93,17 @@ void collector(int pipe_read)
 
       //riceve: numero di file reg. in input
       size_t tot_files = 0;
-	read_n(sockfd, sizet_buf, sizeof(size_t));
+	read_n(sockfd, (void*)sizet_buf, sizeof(size_t));
       tot_files = *sizet_buf;
       //invia: conferma ricezione
       *sizet_buf = 0;
-	write_n(sockfd, sizet_buf, sizeof(size_t));
+	write_n(sockfd, (void*)sizet_buf, sizeof(size_t));
 
       //elem arr[tot_files]; //array che conterra tutti i risultati
       if (tot_files == 0) goto c_clean;
       arr = (elem*)calloc(tot_files, sizeof(elem));
       if (arr == NULL){
-            LOG_ERR(errno, "calloc");
+            LOG_ERR(errno, "(collector) calloc");
             exit(EXIT_FAILURE);
       }
       
@@ -112,14 +112,14 @@ void collector(int pipe_read)
       int j = tot_files;
       size_t op;
       while (j > 0 && rem_files != 0){
-            mutex_lock(&c_mtx, "lock fallita");
+            mutex_lock(&c_mtx, "(collector) lock");
             //riceve: operazione
             *sizet_buf = 0;
-            read_n(sockfd, sizet_buf, sizeof(size_t));
+            read_n(sockfd, (void*)sizet_buf, sizeof(size_t));
             op = *sizet_buf;
             //invia: conferma ricezione
             *sizet_buf = 0;
-            write_n(sockfd, sizet_buf, sizeof(size_t));
+            write_n(sockfd, (void*)sizet_buf, sizeof(size_t));
 
             //stampa i risultati fino a questo istante
             if (op == PRINT){
@@ -135,28 +135,28 @@ void collector(int pipe_read)
             if (op == SEND_RES){
                   //riceve: risultato
                   long int result;
-	            read_n(sockfd, long_buf, sizeof(long int));
+	            read_n(sockfd, (void*)long_buf, sizeof(long int));
                   result = *long_buf;
                   //invia: conferma ricezione
                   *sizet_buf = 0;
-	            write_n(sockfd, sizet_buf, sizeof(size_t));
+	            write_n(sockfd, (void*)sizet_buf, sizeof(size_t));
 
                   //riceve: lung. str
                   size_t len_s;
-	            read_n(sockfd, sizet_buf, sizeof(size_t));
-                  len_s = *buf; //cast?
+	            read_n(sockfd, (void*)sizet_buf, sizeof(size_t));
+                  len_s = *sizet_buf; //cast?
                   //invia: conferma ricezione
                   *sizet_buf = 0;
-	            write_n(sockfd, sizet_buf, sizeof(size_t));
+	            write_n(sockfd, (void*)sizet_buf, sizeof(size_t));
 
                   //riceve: str
                   char* str = NULL;
                   str = calloc(len_s+1, sizeof(char));
-	            read(sockfd, str, sizeof(char)*len_s);
+	            read_n(sockfd, (void*)str, sizeof(char)*len_s);
                   str[len_s] = '\0';
                   //invia: conferma ricezione
                   *sizet_buf = 0;
-	            write_n(sockfd, sizet_buf, sizeof(size_t));
+	            write_n(sockfd, (void*)sizet_buf, sizeof(size_t));
 
                   //memorizza in array
                   strncpy(arr[i].path, str, len_s);
@@ -171,13 +171,13 @@ void collector(int pipe_read)
             if (op == CLOSE){
                   //riceve: num. di elem. ancora da elaborare
                   rem_files = 0;
-	            read_n(sockfd, sizet_buf, sizeof(size_t));
+	            read_n(sockfd, (void*)sizet_buf, sizeof(size_t));
                   rem_files = *sizet_buf;
                   //invia: conferma ricezione
                   *sizet_buf = 0;
-	            write_n(sockfd, sizet_buf, sizeof(size_t));
+	            write_n(sockfd, (void*)sizet_buf, sizeof(size_t));
             }
-            mutex_unlock(&c_mtx, "lock fallita");
+            mutex_unlock(&c_mtx, "(collector) lock");
       }
       
       //OUTPUT
@@ -191,15 +191,17 @@ void collector(int pipe_read)
       
       //chiusura normale
       if (close(sockfd) != 0){
-      	LOG_ERR(errno, "(Collector) close fallita");
+      	LOG_ERR(errno, "(collector) close");
       }
       if (arr) free(arr);
-      if (buf) free(buf);
+      if (long_buf) free(long_buf);
+      if (sizet_buf) free(sizet_buf);
       exit(EXIT_SUCCESS);
       
       //chiusura errore
       c_clean:
       //if (arr) free(arr);
-      if (buf) free(buf);
+      if (long_buf) free(long_buf);
+      if (sizet_buf) free(sizet_buf);
       exit(EXIT_FAILURE);
 }
