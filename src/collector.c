@@ -12,45 +12,45 @@ int cmp_func(const void*a, const void* b)
 
 void collector()
 {
-      //printf("(collector) pid=%d\n", getpid()); //DEBUG
-      long int* long_buf = NULL;
-	long_buf = (long int*)malloc(sizeof(long int));
-      size_t* sizet_buf = NULL; 
-      sizet_buf = (size_t*)malloc(sizeof(size_t));
-      int k;
-      int fd_skt = -1;
-      elem* arr = NULL;
+        //printf("(collector) pid=%d\n", getpid()); //DEBUG
+        long int* long_buf = NULL;
+        long_buf = (long int*)malloc(sizeof(long int));
+        size_t* sizet_buf = NULL; 
+        sizet_buf = (size_t*)malloc(sizeof(size_t));
+        int k;
+        int fd_skt = -1;
+        elem* arr = NULL;
 
-      ///////////////// SEGNALI /////////////////
-      struct sigaction s;
-	memset(&s, 0, sizeof(struct sigaction));
-      s.sa_handler = SIG_IGN;
-	ec_meno1_c(sigaction(SIGINT, &s, NULL), "(collector) sigaction", c_clean);
-	
-	struct sigaction s1;
-	memset(&s1, 0, sizeof(struct sigaction));
-      s1.sa_handler = SIG_IGN;
-      ec_meno1_c(sigaction(SIGQUIT, &s1, NULL), "(collector) sigaction", c_clean);
-	
-	struct sigaction s2;
-	memset(&s2, 0, sizeof(struct sigaction));
-      s2.sa_handler = SIG_IGN;
-	ec_meno1_c(sigaction(SIGHUP, &s2, NULL), "(collector) sigaction", c_clean); 
+        ///////////////// SEGNALI /////////////////
+        struct sigaction s;
+        memset(&s, 0, sizeof(struct sigaction));
+        s.sa_handler = SIG_IGN;
+        ec_meno1_c(sigaction(SIGINT, &s, NULL), "(collector) sigaction", c_clean);
+	  
+	  struct sigaction s1;
+	  memset(&s1, 0, sizeof(struct sigaction));
+        s1.sa_handler = SIG_IGN;
+        ec_meno1_c(sigaction(SIGQUIT, &s1, NULL), "(collector) sigaction", c_clean);
+	  
+	  struct sigaction s2;
+	  memset(&s2, 0, sizeof(struct sigaction));
+        s2.sa_handler = SIG_IGN;
+	  ec_meno1_c(sigaction(SIGHUP, &s2, NULL), "(collector) sigaction", c_clean); 
 
-	struct sigaction s3;
-	memset(&s3, 0, sizeof(struct sigaction));
-      s3.sa_handler = SIG_IGN;
-	ec_meno1_c(sigaction(SIGTERM, &s3, NULL), "(collector) sigaction", c_clean);  
+	  struct sigaction s3;
+	  memset(&s3, 0, sizeof(struct sigaction));
+        s3.sa_handler = SIG_IGN;
+	  ec_meno1_c(sigaction(SIGTERM, &s3, NULL), "(collector) sigaction", c_clean);  
 
-	struct sigaction s4;
-	memset(&s4, 0, sizeof(struct sigaction));
-      s4.sa_handler = SIG_IGN;
-	ec_meno1_c(sigaction(SIGUSR1, &s4, NULL), "(collector) sigaction", c_clean);
+	  struct sigaction s4;
+	  memset(&s4, 0, sizeof(struct sigaction));
+        s4.sa_handler = SIG_IGN;
+	  ec_meno1_c(sigaction(SIGUSR1, &s4, NULL), "(collector) sigaction", c_clean);
 
-      struct sigaction s5;
-      memset(&s5, 0, sizeof(struct sigaction));
-	s5.sa_handler = SIG_IGN;
-	ec_meno1_c(sigaction(SIGPIPE, &s5, NULL), "(collector) sigaction", c_clean);
+        struct sigaction s5;
+        memset(&s5, 0, sizeof(struct sigaction));
+	  s5.sa_handler = SIG_IGN;
+	  ec_meno1_c(sigaction(SIGPIPE, &s5, NULL), "(collector) sigaction", c_clean);
 
 
       //azzera signal mask
