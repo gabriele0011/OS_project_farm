@@ -99,7 +99,7 @@ int parser(int dim, char** array)
 	//printf("pasing now: %s\n", array[i+1]);
       //CASO -n <_>
 	if (is_opt(array[i], "-n")){
-		if (is_argument(array[i+1])){
+	      if (is_argument(array[i+1])){
                 	if ((n_thread = is_number(array[++i])) == -1){
 				LOG_ERR(EINVAL, "(main) argomento -n non numerico");
 				return -1;
@@ -120,7 +120,7 @@ int parser(int dim, char** array)
                 	LOG_ERR(EINVAL, "(main) argomento -q mancante");
 			return -1;
             }
-	}  
+	}
       //CASO -d <directory_name>
 		if (is_opt(array[i], "-d")){
 			//argomento obbligatorio
@@ -132,7 +132,7 @@ int parser(int dim, char** array)
 			}
 		}
 		
-	//CASO -t <ms_delay>
+      //CASO -t <ms_delay>
 	if (is_opt(array[i], "-t")){
 		if (is_argument(array[i+1])){
                 	if ((ms_delay = is_number(array[++i])) == -1){
@@ -144,12 +144,12 @@ int parser(int dim, char** array)
 			return -1;
 		}
 	}
-      	//CASO file check lista di file
-		if (file_check(array[i]) != -1)
-    			insert_node(&files_list, array[i]);
+      //CASO file check lista di file
+	if (file_check(array[i]) != -1)
+    		insert_node(&files_list, array[i]);
 	}
 
-	//controllo dipendenze
+      //controllo dipendenze
     	if (files_list == NULL && dir_name == NULL){
     		LOG_ERR(EINVAL, "(main) nessun file in input");
     		return -1;
@@ -169,7 +169,7 @@ int main(int argc, char* argv[])
 	//printf("processo MasterWorker pid=%d\n", getpid());
 	//parsing
    	if (parser(argc, argv) == -1){
-    		exit(EXIT_FAILURE);
+    	      exit(EXIT_FAILURE);
    	}
     	//master worker
 	MasterWorker();
