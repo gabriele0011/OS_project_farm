@@ -30,11 +30,7 @@ static void handler_sigusr1(int signum){
 
 void MasterWorker()
 {
-	int err;
-	long int* long_buf = NULL;
-	long_buf = (long int*)malloc(sizeof(long int));
-	size_t* sizet_buf = NULL;
-	sizet_buf = (size_t*)malloc(sizeof(size_t));
+      int err;
 
 	///////////////// SEGNALI /////////////////
 	struct sigaction s; 
@@ -73,7 +69,10 @@ void MasterWorker()
 			collector();
 	}else{ //processo padre
 		///////////////// PROC. MASTER WORKER /////////////////
-		
+	        long int* long_buf = NULL;
+	        long_buf = (long int*)malloc(sizeof(long int));
+	        size_t* sizet_buf = NULL;
+	        sizet_buf = (size_t*)malloc(sizeof(size_t));
 		///////////////// SEGNALI /////////////////
 		//gestori permantenti
 		struct sigaction s1;
@@ -150,13 +149,14 @@ void MasterWorker()
 
 		size_t rem_files = tot_files; //files ancora da elaborare
 		///////////////// MasterWorker LOOP /////////////////
-		while (!child_term){
+		while (!child_term && rem_files != 0){
 			if (sig_usr1){
 				//notificare al processo collector di stampare i risultati ottenuti fino ad ora
 				*sizet_buf = PRINT;
 				write_n(fd, (void*)sizet_buf, sizeof(size_t));
 				read_n(fd, (void*)sizet_buf, sizeof(size_t));
 				if (*sizet_buf != 0) goto mt_clean;
+                                sig_usr1 = 0;
 			}
 			if (!closing){
 				if (q_curr_capacity < q_len && rem_files > 0){
@@ -206,8 +206,8 @@ void MasterWorker()
 				break;
 			}
 		}
-		//printf("CLOSING\n");
 		///////////////// TERMINAZIONE /////////////////
+		//printf("CLOSING\n"); //DEBUG
 		int status;
 		//attesa terminazione proc. collector
 		if (waitpid(pid, &status, 0) == -1){
@@ -240,6 +240,7 @@ void MasterWorker()
 		if (thread_workers_arr) free(thread_workers_arr);
 		if (files_list) dealloc_list(&files_list);
 		if (conc_queue) dealloc_queue(&conc_queue);
+            //printf("NORMAL CLOSING\n"); //DEBUG
 		exit(EXIT_SUCCESS);
 
 		//chiususa in caso di errore
@@ -252,6 +253,7 @@ void MasterWorker()
 		if (thread_workers_arr) free(thread_workers_arr);
 		if (files_list) dealloc_list(&files_list);
 		if (conc_queue) dealloc_queue(&conc_queue);
+            //printf("ERROR CLOSING\n"); //DEBUG
 		exit(EXIT_FAILURE);
-	}
+          }
 }	

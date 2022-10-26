@@ -36,14 +36,13 @@ node* extract_node(node** list)
 void dealloc_list(node** list)
 {
       if (*list == NULL) return;
-      node* curr = *list;
-      while(curr != NULL){
-            node* temp = curr;
-            curr = curr->next;
+      while(*list != NULL){
+            node* temp = *list;
+            *list = (*list)->next;
             free(temp->str);
             free(temp);
       }
-      *list = NULL;
+      //*list = NULL;
       return;
 }
 

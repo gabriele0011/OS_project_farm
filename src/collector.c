@@ -1,5 +1,7 @@
 #include "collector.h"
+#include "list.h"
 
+extern node* files_list;
 pthread_mutex_t c_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 int cmp_func(const void*a, const void* b)
@@ -115,8 +117,7 @@ void collector()
 	write_n(fd_skt, (void*)sizet_buf, sizeof(size_t));
 
       if (tot_files == 0) goto c_clean;
-      arr = (elem*)calloc(sizeof(elem), tot_files);
-      
+      arr = (elem*)calloc(tot_files, sizeof(elem));
       int rem_files = tot_files;
       int count = 0;
       int last_files = -1;
@@ -136,12 +137,19 @@ void collector()
             //stampa i risultati fino a questo istante
             if (op == PRINT){
                   //ordina risultati attuali
-
                   size_t temp_index = tot_files - count;
-                  qsort(arr, tot_files, sizeof(elem), cmp_func);
+                  elem* clone_arr = NULL;
+                  clone_arr = (elem*)calloc(tot_files, sizeof(elem));
+                  for(k = 0; k < tot_files; k++){
+                        clone_arr[k].res = arr[k].res;
+                        strcpy(clone_arr[k].path, arr[k].path);
+                  }
+                  qsort(clone_arr, tot_files, sizeof(elem), cmp_func);
                   //stampa risultati
                   for (k = temp_index; k < tot_files; k++)
-                        printf("%ld %s\n", arr[k].res, arr[k].path);
+                        printf("%ld %s\n", clone_arr[k].res, clone_arr[k].path);
+                  printf("stampa risultati attuali\n");
+                  free(clone_arr);
       
             }
             //ricezione di un nuovo risultato+path
@@ -205,8 +213,10 @@ void collector()
             printf("%ld %s\n", arr[k].res, arr[k].path);
       }
       
+      //printf("BUG HERE\n");
       if (arr) free(arr);
       if (fd_skt != -1) close(fd_skt);
+      if (files_list) dealloc_list(&files_list);
       if (long_buf) free(long_buf);
       if (sizet_buf) free(sizet_buf);
       exit(EXIT_SUCCESS);
@@ -216,6 +226,7 @@ void collector()
       if (arr) free(arr);
       if (fd_skt != -1) close(fd_skt);
       if (long_buf) free(long_buf);
+      if (files_list) dealloc_list(&files_list);
       if (sizet_buf) free(sizet_buf);
       exit(EXIT_FAILURE);
 }

@@ -39,12 +39,12 @@ int send_res(long int result, char* path)
 	read_n(fd, (void*)sizet_buf, sizeof(size_t));
 	if(*sizet_buf != 0) goto sr_clean;
 	
-	mutex_unlock(&op_mtx, "(pool_worker) send_res");
 	
 	//deallocazioni
 	if (long_buf) free(long_buf);
 	if (sizet_buf) free(sizet_buf);
 	//printf("send_res eseguita\n"); //DEBUG
+	mutex_unlock(&op_mtx, "(pool_worker) send_res");
 	return 0;
 
 	sr_clean:
