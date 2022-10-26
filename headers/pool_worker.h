@@ -6,7 +6,7 @@
 extern pthread_mutex_t op_mtx;
 
 int send_res(long int result, char* path);
-int thread_func2(char* path);
+void thread_func2(char* path);
 void* thread_func1(void *arg);
 pthread_t* create_pool_worker();
 

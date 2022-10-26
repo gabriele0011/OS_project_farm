@@ -1,9 +1,6 @@
 #include "master_thread.h"
 
 
-//extern t_queue* conc_queue;
-//extern node* files_list;
-
 //signal handlers
 static void handler_sigchld(int signum){
 	child_term = 1;
@@ -68,13 +65,15 @@ void MasterWorker()
 
 	///////////////// PROC. COLLECTOR /////////////////
 	pid_t pid = fork();
-	if (pid < 0){
+	if (pid < 0){ //fork fallita
 		LOG_ERR(errno, "(MasterWorker) fork");
 		goto mt_clean;
 	}
 	if (pid == 0){ //proc. figlio
 			collector();
-	}else{
+	}else{ //processo padre
+		///////////////// PROC. MASTER WORKER /////////////////
+		
 		///////////////// SEGNALI /////////////////
 		//gestori permantenti
 		struct sigaction s1;
@@ -132,13 +131,14 @@ void MasterWorker()
 		ec_meno1_c(bind(fd_skt, (struct sockaddr*)&sa, sizeof(sa)), "(MasterWorker) bind", mt_clean);
 		ec_meno1_c(listen(fd_skt, SOMAXCONN), "(MasterWorker) listen", mt_clean);
 		ec_meno1_c((fd = accept(fd_skt, NULL, 0)), "(MasterWorker) accept", mt_clean);
-		// printf("(MasterWorker) socket: %s - attivo\n", sa.sun_path); //DEBUG
+		//printf("(MasterWorker) socket: %s - attivo\n", sa.sun_path); //DEBUG
 
 
 		///////////////// THREAD POOL  /////////////////
 		pthread_t* thread_workers_arr = NULL;
     		thread_workers_arr = create_pool_worker();
     		if (thread_workers_arr == NULL) goto mt_clean;
+
 
 		//comunica: numero di file reg. input
 		*sizet_buf = tot_files;
@@ -172,7 +172,7 @@ void MasterWorker()
 					//dealloca il nodo estratto
 					free(temp->str);
 					free(temp);
-					//aggiorna cap. attuale
+					//aggiorna cap. attuale e n. file restanti
 					q_curr_capacity++;
 					rem_files--;
 					if (ms_delay != 0){
@@ -190,7 +190,7 @@ void MasterWorker()
 				}
 			}
 			if (closing){
-				//comunica: segnale di chiusura -> 3
+				//comunica: segnale di chiusura (cod.3)
 				*sizet_buf = CLOSE;
 				write_n(fd, (void*)sizet_buf, sizeof(size_t));
 				//riceve: conferma ricezione
@@ -206,10 +206,10 @@ void MasterWorker()
 				break;
 			}
 		}
-
+		//printf("CLOSING\n");
 		///////////////// TERMINAZIONE /////////////////
 		int status;
-		//attesa terminazione collector
+		//attesa terminazione proc. collector
 		if (waitpid(pid, &status, 0) == -1){
 			LOG_ERR(errno, "(MasterWorker) wait");
 			exit(EXIT_FAILURE);
@@ -237,7 +237,6 @@ void MasterWorker()
 		if (fd != -1) close(fd);
 		if (long_buf) free(long_buf);
 		if (sizet_buf) free(sizet_buf);
-		if (fd != -1) close(fd);
 		if (thread_workers_arr) free(thread_workers_arr);
 		if (files_list) dealloc_list(&files_list);
 		if (conc_queue) dealloc_queue(&conc_queue);

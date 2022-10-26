@@ -1,5 +1,7 @@
 #include "aux_function.h"
 
+enum{ NS_PER_SECOND = 1000000000 };
+
 void sub_timespec(struct timespec t1, struct timespec t2, struct timespec *td)
 {
 	td->tv_nsec = t2.tv_nsec - t1.tv_nsec;
@@ -68,7 +70,7 @@ void read_n(int fd, void *buf, size_t bytes)
 	int N;
 	N = read(fd, buf, bytes);
 	if (N != bytes && errno != EINTR){
-		LOG_ERR(errno, "read");
+		//LOG_ERR(errno, "read");
 		exit(EXIT_FAILURE);
 	}
 	return;
@@ -79,7 +81,7 @@ void write_n(int fd, void *buf, size_t bytes)
 	int N;
 	N = write(fd, buf, bytes);
 	if (N != bytes && errno != EINTR){
-		LOG_ERR(errno, "write");
+		//LOG_ERR(errno, "write");
 		exit(EXIT_FAILURE);
 	}
 	return;

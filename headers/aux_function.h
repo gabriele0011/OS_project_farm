@@ -1,8 +1,6 @@
 #include "header_file.h"
 #include "error_ctrl.h"
 
-enum{ NS_PER_SECOND = 1000000000 };
-
 //funzioni ausiliarie
 void sub_timespec(struct timespec t1, struct timespec t2, struct timespec *td);
 long is_number(const char* s);

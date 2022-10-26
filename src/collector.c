@@ -52,7 +52,6 @@ void collector()
 	s5.sa_handler = SIG_IGN;
 	ec_meno1_c(sigaction(SIGPIPE, &s5, NULL), "(collector) sigaction", c_clean);
 
-	//gestione del segnale SUIGPIPE ereditata dal processo padre
 
       //azzera signal mask
       sigset_t set;
@@ -78,6 +77,10 @@ void collector()
       //timer connect setting and loop
 	struct timespec time1, time2, delta;
       struct timespec abstime;
+      memset(&abstime, 0, sizeof(struct timespec));
+      memset(&time1, 0, sizeof(struct timespec));
+      memset(&time2, 0, sizeof(struct timespec));
+      memset(&delta, 0, sizeof(struct timespec));
 	abstime.tv_sec = 10; //tempo assoluto 10 secondi
 
       if (clock_gettime(CLOCK_REALTIME, &time1) == -1){
@@ -88,7 +91,10 @@ void collector()
     	      if (errno == ENOENT){
                   msleep(SLEEP_TIME_MS);
                   // seconda misurazione
-                  ec_meno1_r(clock_gettime(CLOCK_REALTIME, &time2), "openConnection", -1);
+                  if (clock_gettime(CLOCK_REALTIME, &time2) == -1){
+                        LOG_ERR(errno, "(collector) clock_gettime");
+                        goto c_clean;
+                  }
                   // calcola tempo trascorso tra time1 e time2 in delta
                   sub_timespec(time1, time2, &delta);
                   // controllo che non si sia superato il tempo assoluto dal primo tentativo di connessione
@@ -100,7 +106,7 @@ void collector()
       }
 	//printf("(collector) socket: %s - attivo\n", sa.sun_path); //DEBUG
 
-      //riceve: numero di file reg. in input
+      //riceve: numero di file reg. in input al MW
       size_t tot_files = 0;
 	read_n(fd_skt, (void*)sizet_buf, sizeof(size_t));
       tot_files = *sizet_buf;
@@ -115,8 +121,10 @@ void collector()
       int count = 0;
       int last_files = -1;
       size_t op;
-      while (rem_files != 0 || last_files != 0){
+      while (rem_files != 0 && last_files != 0){
+            
             mutex_lock(&c_mtx, "(collector) lock");
+            //ricezione op
             //riceve: operazione
             *sizet_buf = 0;
             read_n(fd_skt, (void*)sizet_buf, sizeof(size_t));
@@ -127,13 +135,14 @@ void collector()
 
             //stampa i risultati fino a questo istante
             if (op == PRINT){
-                  //ordina risultati
-                  elem temp_arr[count];
-                  qsort(temp_arr, count, sizeof(elem), cmp_func);
+                  //ordina risultati attuali
+
+                  size_t temp_index = tot_files - count;
+                  qsort(arr, tot_files, sizeof(elem), cmp_func);
                   //stampa risultati
-                  for (k = 0; k < count; k++)
+                  for (k = temp_index; k < tot_files; k++)
                         printf("%ld %s\n", arr[k].res, arr[k].path);
-                  
+      
             }
             //ricezione di un nuovo risultato+path
             if (op == SEND_RES){
@@ -179,24 +188,24 @@ void collector()
                   //invia: conferma ricezione
                   *sizet_buf = 0;
 	            write_n(fd_skt, (void*)sizet_buf, sizeof(size_t));
+                  //printf("RICEVUTO SEGNALE DI CHIUSURA\n");
             }
             mutex_unlock(&c_mtx, "(collector) lock");
+            //printf("COLLETOR LOOP\n");
       }
-      
       //OUTPUT
       //calcola dim finale array di output
-      size_t final_num_files;
-      if(count == tot_files) final_num_files = tot_files;
-      else final_num_files = tot_files - rem_files;
+      size_t final_index;
+      final_index = tot_files - count;
 
       //ordina risultati
       qsort(arr, tot_files, sizeof(elem), cmp_func);
       //stampa risultati
-      for (k = final_num_files; k < tot_files; k++){
+      for (k = final_index; k < tot_files; k++){
             printf("%ld %s\n", arr[k].res, arr[k].path);
       }
       
-      //if (arr) free(arr);
+      if (arr) free(arr);
       if (fd_skt != -1) close(fd_skt);
       if (long_buf) free(long_buf);
       if (sizet_buf) free(sizet_buf);
@@ -204,7 +213,7 @@ void collector()
       
       //chiusura errore
       c_clean:
-      //if (arr) free(arr);
+      if (arr) free(arr);
       if (fd_skt != -1) close(fd_skt);
       if (long_buf) free(long_buf);
       if (sizet_buf) free(sizet_buf);

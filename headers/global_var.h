@@ -26,7 +26,3 @@ extern volatile sig_atomic_t child_term;
 //var. mutex e cond.
 extern pthread_mutex_t mtx;
 extern pthread_cond_t cv;
-
-// var. per pipe
-extern int fd_pipe_read;
-extern int fd_pipe_write;
