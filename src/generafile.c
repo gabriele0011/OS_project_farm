@@ -45,7 +45,8 @@ int main(int argc, char *argv[]) {
   }
   long sum=0;
   long *q=p;
-  for(long i=0;i<nelem; ++i) {
+long i;
+  for(i=0;i<nelem; ++i) {
     *q = (long)(rand_r(&seed) / 12345678.0);
     sum += i * *q;
     ++q;

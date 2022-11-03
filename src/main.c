@@ -36,9 +36,9 @@ void take_from_dir(const char* dirname)
 	//passo 1: apertura dir
 	DIR* d;
 	if ((d = opendir(dirname)) == NULL){ 
-            LOG_ERR(errno, "opendir in take_from_dir"); 
-            return; 
-      }
+		LOG_ERR(errno, "opendir in take_from_dir"); 
+           	return; 
+	}
 	//printf("take_from_dir:	dir '%s' aperta\n", dirname); //DEBUG
 	//passo 2: esplorazione dir
 	struct dirent* entry;
@@ -92,85 +92,85 @@ int file_check(char* path)
 
 int parser(int dim, char** array)
 {
-   	dir_name = NULL;
+	dir_name = NULL;
+	
 	//CICLO PARSING: si gestiscono i comandi di setting del server -n, -q, -d, -t + lista di files
 	int i = 0;
 	while (++i < dim){
-            //printf("pasing now: %s\n", array[i+1]);
-            //CASO -n <nthread>
-            if (is_opt(array[i], "-n")){
-                  if (is_argument(array[i+1])){
-                        if ((n_thread = is_number(array[++i])) == -1){
-	                        LOG_ERR(EINVAL, "(main) argomento -n non numerico");
-                              return -1;
-                        }
-		      }else{
-            	      LOG_ERR(EINVAL, "(main) argomento -n mancante");
-			      return -1;
-                  }
-	      }
-            //CASO -q <qlen>
-	      if (is_opt(array[i], "-q")){
-		      if (is_argument(array[i+1])){
-                        if ((q_len = is_number(array[++i])) == -1){
-				      LOG_ERR(EINVAL, "(main) argomento -q non numerico");
-				      return -1;
-                	      }
-                  }else{
-                	      LOG_ERR(EINVAL, "(main) argomento -q mancante");
-			      return -1;
-                  }
-	      }
-            //CASO -d <directory_name>
-	      if (is_opt(array[i], "-d")){
-                  //argomento obbligatorio
-		      if (is_argument(array[i+1])) 
-			      dir_name = array[++i];
-		      else{
-			      LOG_ERR(EINVAL, "(main) argomento -d mancante");
-			      return -1;
-		      }
+		//CASO -n <nthread>
+		if (is_opt(array[i], "-n")){
+			if (is_argument(array[i+1])){
+				if ((n_thread = is_number(array[++i])) == -1){
+					LOG_ERR(EINVAL, "(main) argomento -n non numerico");
+					return -1;
+				}
+			}else{
+				LOG_ERR(EINVAL, "(main) argomento -n mancante");
+				return -1;
+			}
 		}
-		
-            //CASO -t <ms_delay>
-	      if (is_opt(array[i], "-t")){
-		      if (is_argument(array[i+1])){
-                	      if ((ms_delay = is_number(array[++i])) == -1){
-				      LOG_ERR(EINVAL, "(main) argomento -t non numerico");
-				      return -1;
-                        }
-		      }else{
-                	      LOG_ERR(EINVAL, "(main) argomento -t mancante");
-			      return -1;
-		      }
-	      }
-            //CASO file check lista di file
-	      if (file_check(array[i]) != -1)
-    		      insert_node(&files_list, array[i]);
+		//CASO -q <qlen>
+		if (is_opt(array[i], "-q")){
+			if (is_argument(array[i+1])){
+				if ((q_len = is_number(array[++i])) == -1){
+					LOG_ERR(EINVAL, "(main) argomento -q non numerico");
+					return -1;
+				}
+			}else{
+				LOG_ERR(EINVAL, "(main) argomento -q mancante");
+				return -1;
+			}
+		}
+		//CASO -d <directory_name>
+		if (is_opt(array[i], "-d")){
+			//argomento obbligatorio
+			if (is_argument(array[i+1])) 
+				dir_name = array[++i];
+			else{
+				LOG_ERR(EINVAL, "(main) argomento -d mancante");
+				return -1;
+			}
+		}
+
+		//CASO -t <ms_delay>
+		if (is_opt(array[i], "-t")){
+			if (is_argument(array[i+1])){
+				if ((ms_delay = is_number(array[++i])) == -1){
+					LOG_ERR(EINVAL, "(main) argomento -t non numerico");
+					return -1;
+				}
+			}else{
+				LOG_ERR(EINVAL, "(main) argomento -t mancante");
+				return -1;
+			}
+		}
+		//CASO file check lista di file
+		if (file_check(array[i]) != -1)
+			insert_node(&files_list, array[i]);
 	}
-      //controllo dipendenze
-    	if (files_list == NULL && dir_name == NULL){
-    		LOG_ERR(EINVAL, "(main) nessun file in input");
-    		return -1;
-    	}
+	//controllo dipendenze
+	if (files_list == NULL && dir_name == NULL){
+		LOG_ERR(EINVAL, "(main) nessun file in input");
+		return -1;
+	}
 
 	//se -d allora esplora dir
-    	if(dir_name != NULL) take_from_dir(dir_name);
-
+	if(dir_name != NULL) take_from_dir(dir_name);
 
 	//printf("DEBUG - lista dei file acquisiti\n"); //DEBUG
-    	//print_list(files_list); //DEBUG
+	//print_list(files_list); //DEBUG
 	return 0;
 }
+
 
 int main(int argc, char* argv[])
 {
 	//printf("processo MasterWorker pid=%d\n", getpid());
 	//parsing
-   	if (parser(argc, argv) == -1){
-    	      exit(EXIT_FAILURE);
-   	}
-    	//master worker
+	if (parser(argc, argv) == -1)
+		exit(EXIT_FAILURE);
+
+	//master worker
 	MasterWorker();
-   	return 0;
+	return 0;
 }

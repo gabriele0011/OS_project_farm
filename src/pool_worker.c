@@ -1,6 +1,7 @@
 #include "pool_worker.h"
 
 extern t_queue* conc_queue;
+size_t is_last_elem = 0;
 
 int send_res(long int result, char* path)
 {
@@ -38,12 +39,20 @@ int send_res(long int result, char* path)
 	//riceve: conferma ricezione
 	read_n(fd, (void*)sizet_buf, sizeof(size_t));
 	if(*sizet_buf != 0) goto sr_clean;
+
+	//comunica: ultimo elemento?
+	if (is_last_elem) *sizet_buf = 1;
+	else *sizet_buf = 0;
+	write_n(fd, (void*)sizet_buf, sizeof(size_t));
+	//riceve: conferma ricezione
+	read_n(fd, (void*)sizet_buf, sizeof(size_t));
+	if(*sizet_buf != 0) goto sr_clean;
 	
 	
 	//deallocazioni
 	if (long_buf) free(long_buf);
 	if (sizet_buf) free(sizet_buf);
-	//printf("send_res eseguita\n"); //DEBUG
+	//printf("send_res eseguita - q_curr_capacity=%d\n", q_curr_capacity); //DEBUG
 	mutex_unlock(&op_mtx, "(pool_worker) send_res");
 	return 0;
 
@@ -104,14 +113,14 @@ void thread_func2(char* path)
 
 void* thread_func1(void *arg)
 {
-	//printf("thread = %d\n", gettid());
+	//printf("thread = %d\n", gettid()); //DEBUG
 	int err;
-	char* buf = NULL;
+	char* buf = NULL;	
 
 	while (1){
 		mutex_lock(&mtx, "(pool_worker) lock ");
 		//pop richiesta dalla coda concorrente
-		while ( !(buf = (char*)dequeue(&conc_queue)) && !child_term){	
+		while ( !(buf = (char*)dequeue(&conc_queue)) && !child_term){
 			if ((err = pthread_cond_wait(&cv, &mtx)) != 0){
 				LOG_ERR(err, "(pool_worker) phtread_cond_wait");
 				exit(EXIT_FAILURE);
@@ -121,11 +130,12 @@ void* thread_func1(void *arg)
 		mutex_unlock(&mtx, "(pool_worker) unlock");
 		
 		//uscita 
-		if (child_term) break;
+		//if (closing == 1 && buf == NULL) break;
+		if (child_term ) break;
+		if (closing && q_curr_capacity == 0) is_last_elem = 1;
 		
 		//funzione che opera sul file
 		thread_func2(buf);
-
 		if(buf) free(buf);
 		buf = NULL;
 	}
@@ -140,11 +150,12 @@ pthread_t* create_pool_worker()
 	pthread_t* thread_workers_arr = NULL;
 	thread_workers_arr = (pthread_t*)calloc(sizeof(pthread_t), n_thread);
 	//pthread_t thread_workers_arr[n_thread];
-	for(int i = 0; i < n_thread; i++){
+	int i;	
+	for(i = 0; i < n_thread; i++){
 		if ((err = pthread_create(&(thread_workers_arr[i]), NULL, thread_func1, NULL)) != 0){    
 			LOG_ERR(err, "(pool_worker) pthread_create");
 			return NULL;
 		}
-    }
-    return thread_workers_arr;
+    	}
+    	return thread_workers_arr;
     }
