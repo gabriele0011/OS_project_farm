@@ -1,8 +1,4 @@
-//correzioni: 
-//1. controlla che in take_from_dir si consideri il path dei file prelevati dalla directory
-
 #include "main.h"
-#define PATH_LEN_MAX 255
 
 //var. mutex e cond.
 pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
@@ -10,26 +6,26 @@ pthread_cond_t cv = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t op_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 
-//parsing global var
+//var. parser
 size_t n_thread = 4;
 size_t q_len = 8;
 char* dir_name = NULL;
 int ms_delay = 0;
-//var socket
+//var. socket
 int fd = -1;
 int fd_skt = -1;
-//var globali lista e coda
+//var. lista e coda
 node* files_list = NULL;
-size_t tot_files = 0;
 t_queue* conc_queue = NULL;
+size_t tot_files = 0;
 size_t q_curr_capacity = 0;
 
-//segnali
+/*
+//var. segnali
 volatile sig_atomic_t sig_usr1 = 0;
 volatile sig_atomic_t closing = 0;
 volatile sig_atomic_t child_term = 0;
-
-
+*/
 
 void take_from_dir(const char* dirname)
 {
@@ -40,7 +36,7 @@ void take_from_dir(const char* dirname)
            	return; 
 	}
 	//printf("take_from_dir:	dir '%s' aperta\n", dirname); //DEBUG
-	//passo 2: esplorazione dir
+	//passo 2: esplora dir
 	struct dirent* entry;
 	errno = 0;
 	while (errno == 0 && ((entry = readdir(d)) != NULL)){
@@ -48,18 +44,18 @@ void take_from_dir(const char* dirname)
 		char path[PATH_LEN_MAX];
 		memset((void*)path, '\0', (sizeof(char)*PATH_LEN_MAX));
 		snprintf(path, PATH_MAX , "%s/%s", dirname, entry->d_name);
-		//passo 4 caso 1: controlla che se si tratti di una dir
+		//passo 4 caso 1: verifica se è una dir
 		if (is_directory(path)){	
-			//controlla che non si tratti della dir . o ..
+			//controlla che non si tratti della dir "." o ".."
 			if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0)
 				//visita ricorsiva su nuova directory
 				take_from_dir(path);
 		//passo 4 caso 2: inserimento del file in lista
 		}else{
 			//printf("take_from_dir su %s\n", path); DEBUG
-			//file check file dalla dir
+			//file check ed eventuale inserimento
 			if(file_check(path) != -1)
-            	insert_node(&files_list, path);
+            		insert_node(&files_list, path);
 			else{
 				LOG_ERR(errno, "file_check in take_from_dir");
 			}
@@ -74,14 +70,13 @@ void take_from_dir(const char* dirname)
 int file_check(char* path)
 {
 	//printf("file_check on %s\n", path); //DEBUG
+	
 	//verifica file regolare
     	struct stat s;
     	if (lstat(path, &s) == -1){
       	//LOG_ERR(errno, "lstat");
  		return -1;
     	}
-
-	//controllo file regolare
     	if(S_ISREG(s.st_mode) != 0){ 
 		tot_files++; 
 		return 0; 
@@ -94,7 +89,7 @@ int parser(int dim, char** array)
 {
 	dir_name = NULL;
 	
-	//CICLO PARSING: si gestiscono i comandi di setting del server -n, -q, -d, -t + lista di files
+	//CICLO PARSING: si gestiscono i comandi di setting del server -n, -q, -d, -t e lista di file
 	int i = 0;
 	while (++i < dim){
 		//CASO -n <nthread>
@@ -144,7 +139,7 @@ int parser(int dim, char** array)
 				return -1;
 			}
 		}
-		//CASO file check lista di file
+		//CASO file della lista
 		if (file_check(array[i]) != -1)
 			insert_node(&files_list, array[i]);
 	}
@@ -154,7 +149,7 @@ int parser(int dim, char** array)
 		return -1;
 	}
 
-	//se -d allora esplora dir
+	//CASO -d <dirname>
 	if(dir_name != NULL) take_from_dir(dir_name);
 
 	//printf("DEBUG - lista dei file acquisiti\n"); //DEBUG

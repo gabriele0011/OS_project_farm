@@ -63,9 +63,9 @@ int send_res(long int result, char* path)
 	return -1;
 }
 
-void thread_func2(char* path)
+void thread_proc(char* path)
 {
-	//printf("(thread_func2)\n"); //DEBUG
+	//printf("thread_proc function...\n"); //DEBUG
 	//1. leggere dal disco il contenuto dell'intero file
 	//2. effettuare il calcolo sugli elementi contenuti nel file
 	//3. inviare il risultato al processo collector tramite il socket insieme al nome del file
@@ -97,7 +97,7 @@ void thread_func2(char* path)
 		i++; N--;
     	//printf("%ld\n", x); //DEBUG
   	}
-	//printf("(thread_func2) result=%ld\n", result); //DEBUG
+	//printproc) result=%ld\n", result); //DEBUG
 	
 	//chiusura file
   	if (fclose(fd) == -1){
@@ -111,7 +111,7 @@ void thread_func2(char* path)
 	return;
 }
 
-void* thread_func1(void *arg)
+void* thread_start(void *arg)
 {
 	//printf("thread = %d\n", gettid()); //DEBUG
 	int err;
@@ -135,7 +135,7 @@ void* thread_func1(void *arg)
 		if (closing && q_curr_capacity == 0) is_last_elem = 1;
 		
 		//funzione che opera sul file
-		thread_func2(buf);
+		thread_proc(buf);
 		if(buf) free(buf);
 		buf = NULL;
 	}
@@ -152,7 +152,7 @@ pthread_t* create_pool_worker()
 	//pthread_t thread_workers_arr[n_thread];
 	int i;	
 	for(i = 0; i < n_thread; i++){
-		if ((err = pthread_create(&(thread_workers_arr[i]), NULL, thread_func1, NULL)) != 0){    
+		if ((err = pthread_create(&(thread_workers_arr[i]), NULL, thread_start, NULL)) != 0){    
 			LOG_ERR(err, "(pool_worker) pthread_create");
 			return NULL;
 		}

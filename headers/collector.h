@@ -4,15 +4,16 @@
 
 
 #define SOCK_NAME "farm.sck"
+#define SLEEP_TIME_MS 400
+//codifica operazioni
 #define PRINT 1
 #define SEND_RES 2
 #define CLOSE 3
-#define SLEEP_TIME_MS 400
 
 typedef struct _elem{
       char path[255];
       long int res;
 }elem;
 
-int cmp_func(const void*a, const void* b);
+int qs_compare(const void*a, const void* b);
 void collector();

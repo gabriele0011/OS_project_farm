@@ -1,10 +1,10 @@
 #include "collector.h"
 #include "list.h"
 
-extern node* files_list;
 pthread_mutex_t c_mtx = PTHREAD_MUTEX_INITIALIZER;
+extern node* files_list;
 
-int cmp_func(const void*a, const void* b)
+int qs_compare(const void*a, const void* b)
 {
 	const elem* x = a;
 	const elem* y = b;
@@ -125,6 +125,7 @@ void collector()
 	int closure = 0;
 
 	while (rem_files != 0){
+	        
 		mutex_lock(&c_mtx, "(collector) lock");
 	    	//ricezione op
 	    	//riceve: operazione
@@ -145,13 +146,12 @@ void collector()
 			dup_arr[k].res = arr[k].res;
 			strcpy(dup_arr[k].path, arr[k].path);
 			}
-			qsort(dup_arr, tot_files, sizeof(elem), cmp_func);
+			qsort(dup_arr, tot_files, sizeof(elem), qs_compare);
 			//stampa risultati
 			for (k = temp_index; k < tot_files; k++)
 			printf("%ld %s\n", dup_arr[k].res, dup_arr[k].path);
 			//printf("ricevuto SIGUSR1: stampa risultati attuali\n");
 			free(dup_arr);
-
 		}
 		//ricezione di un nuovo risultato+path
 		if (op == SEND_RES){
@@ -199,8 +199,10 @@ void collector()
 			if (closure && last_elem) break;
 		}
 	    	//chisura
-		if (op == CLOSE)
+		if (op == CLOSE){ 
+		        //sprintf("(collector) RICEVUTO SEGNALE DI CHIUSURA\n");
 			closure = 1;
+		}
 		mutex_unlock(&c_mtx, "(collector) lock");
 	}
 	//printf("(collector) chiusura in corso...\n"); //DEBUG
@@ -209,8 +211,9 @@ void collector()
 	size_t final_index;
 	final_index = tot_files - count;
 
+	//scelta di stampare i risultati alla chiusura non richiesta ma possibile
 	//ordina risultati
-	qsort(arr, tot_files, sizeof(elem), cmp_func);
+	qsort(arr, tot_files, sizeof(elem), qs_compare);
 	//stampa risultati
 	for (k = final_index; k < tot_files; k++){
 	    printf("%ld %s\n", arr[k].res, arr[k].path);

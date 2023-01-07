@@ -1,23 +1,23 @@
-SHELL				= /bin/bash
-CC					= gcc
-INCLUDES			= -I ./headers
-FLAGS				= -g -Wall -pedantic -pthread
+SHELL				= 	/bin/bash
+CC				= 	gcc
+INCLUDES			= 	-I ./headers
+FLAGS				= 	-g -Wall -pedantic -pthread
 
-farm_dep			= ./src/aux_function.c ./src/list.c ./src/conc_queue.c ./src/pool_worker.c ./src/collector.c ./src/master_thread.c 
+farm_dep			= 	./src/aux_function.c ./src/list.c ./src/conc_queue.c ./src/pool_worker.c ./src/collector.c ./src/master_thread.c 
 
-generafile_dep		= ./src/generafile.c
+generafile_dep			= 	./src/generafile.c
 
-.PHONY				: all clean test
+.PHONY				:	 all clean test
 
-all					:
+all				:
 					make clean
 					make generafile
 					make farm
 
-generafile			: ./src/generafile.c
+generafile			: 	./src/generafile.c
 						$(CC) $(FLAGS) $(generafile_dep) -o $@					
 
-farm				: ./src/main.c
+farm				: 	./src/main.c
 						$(CC) $(FLAGS) $(farm_dep) $< $(INCLUDES) -o $@
 
 test				:
@@ -25,6 +25,11 @@ test				:
 					make farm
 					chmod +x script/test.sh
 					script/test.sh
+test3				:
+					make generafile
+					make farm
+					chmod +x script/test3.sh
+					script/test3.sh
 
 
 clean				:

@@ -1,5 +1,8 @@
 #include "master_thread.h"
 
+volatile sig_atomic_t sig_usr1=0;
+volatile sig_atomic_t closing=0;
+volatile sig_atomic_t child_term=0;
 
 //signal handlers
 static void handler_sigchld(int signum){
@@ -30,9 +33,10 @@ static void handler_sigusr1(int signum){
 
 void MasterWorker()
 {
-      	int err;
-
+      int err;
+	
 	///////////////// SEGNALI /////////////////
+	//gestione iniziale
 	struct sigaction s; 
 	sigset_t set;
 	if (sigemptyset(&s.sa_mask) != 0){
@@ -66,7 +70,7 @@ void MasterWorker()
 		goto mt_clean;
 	}
 	if (pid == 0){ //proc. figlio
-			collector();
+		collector();
 	}else{ 	//processo padre
 		
 		///////////////// PROC. MASTER WORKER /////////////////
@@ -76,7 +80,7 @@ void MasterWorker()
 	        sizet_buf = (size_t*)malloc(sizeof(size_t));
 		
 		///////////////// SEGNALI /////////////////
-		//gestori permantenti
+		//gestori segnali permanenti: signal handler
 		struct sigaction s1;
 		memset(&s1, 0, sizeof(struct sigaction));
 		s1.sa_handler = handler_sigint;
@@ -112,6 +116,7 @@ void MasterWorker()
 		s7.sa_handler = handler_sigchld;
 		ec_meno1_c(sigaction(SIGCHLD, &s7, NULL), "(MasterWorker) sigaction", mt_clean);
 
+		//azzera la maschera
 		if (sigemptyset(&set) != 0){
 			LOG_ERR(errno, "(MasterWorker) sigemptyset");
 			goto mt_clean;
@@ -152,16 +157,21 @@ void MasterWorker()
 		
 		///////////////// MasterWorker LOOP /////////////////
 		while (!child_term && rem_files != 0){
+			//caso notifica al proc. Collector di stampare i risultati attuali
 			if (sig_usr1){
-				//notificare al processo collector di stampare i risultati ottenuti fino ad ora
 				*sizet_buf = PRINT;
 				write_n(fd, (void*)sizet_buf, sizeof(size_t));
 				read_n(fd, (void*)sizet_buf, sizeof(size_t));
 				if (*sizet_buf != 0) goto mt_clean;
                                 sig_usr1 = 0;
 			}
+			//caso 
 			if (!closing){
 				if (q_curr_capacity < q_len && rem_files > 0){
+                                        if (delay_swicth)
+						if (msleep(ms_delay) < 0){
+							LOG_ERR(errno, "(MasterWorker) msleep");
+						}
 					//lock
 					mutex_lock(&mtx, "(MasterWorker) lock");
 					//estrazione di un file
@@ -178,21 +188,19 @@ void MasterWorker()
 					q_curr_capacity++;
 					rem_files--;
 					//signal
-					if (delay_swicth && ms_delay != 0)
-						if (msleep(ms_delay) < 0){
-							LOG_ERR(errno, "(MasterWorker) msleep");
-						}
+
 					if ((err = pthread_cond_signal(&cv)) == -1){ 
 						LOG_ERR(err, "(MasterWorker) pthread_cond_signal"); 
 						goto mt_clean;
 					}
 					//unlock
 					mutex_unlock(&mtx, "(MasterWorker) unlock");
-					//interruttore delay					
-					delay_swicth = 1;
+					//interruttore delay				
+					if (ms_delay != 0) delay_swicth = 1;
 					
 				}
 			}
+			//caso chiusura sistema: intercettato un segnale
 			if (closing){
 				//comunica: segnale di chiusura (cod.3)
 				*sizet_buf = CLOSE;
@@ -204,7 +212,7 @@ void MasterWorker()
 			}
 		}
 		///////////////// TERMINAZIONE /////////////////
-		printf("(MasterWorker) chiurura in corso...\n child_term=%d - closing=%d\n", child_term, closing); //DEBUG
+		//printf("(MasterWorker) chiurura in corso...\n child_term=%d - closing=%d\n", child_term, closing); //DEBUG
 		int status;
 		//attesa terminazione proc. collector
 		if (waitpid(pid, &status, 0) == -1){
@@ -212,7 +220,7 @@ void MasterWorker()
 			exit(EXIT_FAILURE);
 		}
 		
-		if (WIFEXITED(status)) printf("exited, status=%d\n", WEXITSTATUS(status)); //DEBUG;	
+		//if (WIFEXITED(status)) printf("exited, status=%d\n", WEXITSTATUS(status)); //DEBUG;	
 		
 		//broadcast per threads
 		mutex_lock(&mtx, "(MasterWorker) lock");
@@ -221,7 +229,7 @@ void MasterWorker()
 			exit(EXIT_FAILURE);
 		}
 		mutex_unlock(&mtx, "(MasterWorker) unlock");
-		printf("(MasterWorker) broadcast ok\n"); //DEBUG	
+		//printf("(MasterWorker) broadcast ok\n"); //DEBUG	
 
 		//join threads
 		int i;
@@ -231,7 +239,7 @@ void MasterWorker()
     	  			goto mt_clean;
     	  		}
 		}
-		printf("(MasterWorker) join ok\n"); //DEBUG
+		//printf("(MasterWorker) join ok\n"); //DEBUG
 
 		//chiusura normale
 		if (remove(SOCK_NAME) != 0 ){ LOG_ERR(errno, "(MasterWorker) remove socket file"); }
@@ -242,7 +250,7 @@ void MasterWorker()
 		if (thread_workers_arr) free(thread_workers_arr);
 		if (files_list) dealloc_list(&files_list);
 		if (conc_queue) dealloc_queue(&conc_queue);
-            	printf(" (MasterWorker) normal closing\n"); //DEBUG
+            	//printf(" (MasterWorker) normal closing\n"); //DEBUG
 		exit(EXIT_SUCCESS);
 
 		//chiususa in caso di errore
@@ -255,7 +263,7 @@ void MasterWorker()
 		if (thread_workers_arr) free(thread_workers_arr);
 		if (files_list) dealloc_list(&files_list);
 		if (conc_queue) dealloc_queue(&conc_queue);
-            	printf("(MasterWorker) error closing\n"); //DEBUG
+            	//printf("(MasterWorker) error closing\n"); //DEBUG
 		exit(EXIT_FAILURE);
           }
 }	
