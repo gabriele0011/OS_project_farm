@@ -34,25 +34,15 @@ static void handler_sigusr1(int signum){
 void MasterWorker()
 {
       int err;
-	
 	///////////////// SEGNALI /////////////////
-	//gestione iniziale
+	//gestione iniziale: maschera inizialmente i segnali
 	struct sigaction s; 
 	sigset_t set;
 	if (sigemptyset(&s.sa_mask) != 0){
 		LOG_ERR(errno, "(MasterWorker) sigemptyset");
 		goto mt_clean;
 	}
-	memset(&s, 0, sizeof(struct sigaction));
-	s.sa_handler = SIG_IGN;
-	ec_meno1_c(sigaction(SIGINT, &s, NULL), "(MasterWorker) sigaction", mt_clean);
-	ec_meno1_c(sigaction(SIGQUIT, &s, NULL), "(MasterWorker) sigaction", mt_clean);
-	ec_meno1_c(sigaction(SIGHUP, &s, NULL), "(MasterWorker) sigaction", mt_clean);
-	ec_meno1_c(sigaction(SIGTERM, &s, NULL), "(MasterWorker) sigaction", mt_clean);
-	ec_meno1_c(sigaction(SIGUSR1, &s, NULL), "(MasterWorker) sigaction", mt_clean);
-	ec_meno1_c(sigaction(SIGPIPE, &s, NULL), "(MasterWorker) sigaction", mt_clean);
-	ec_meno1_c(sigaction(SIGCHLD, &s, NULL), "(MasterWorker) sigaction", mt_clean); //ignorato di default
-	
+
 	//crea signal mask
 	if (sigfillset(&set) != 0){
 		LOG_ERR(errno, "(MasterWorker) sigfillset");
@@ -62,6 +52,16 @@ void MasterWorker()
 		LOG_ERR(err, "(MasterWorker) pthread_signmask");
 		goto mt_clean;
 	}
+	//installa handler temporaneo SIG_IGN
+	memset(&s, 0, sizeof(struct sigaction));
+	s.sa_handler = SIG_IGN;
+	ec_meno1_c(sigaction(SIGINT, &s, NULL), "(MasterWorker) sigaction", mt_clean);
+	ec_meno1_c(sigaction(SIGQUIT, &s, NULL), "(MasterWorker) sigaction", mt_clean);
+	ec_meno1_c(sigaction(SIGHUP, &s, NULL), "(MasterWorker) sigaction", mt_clean);
+	ec_meno1_c(sigaction(SIGTERM, &s, NULL), "(MasterWorker) sigaction", mt_clean);
+	ec_meno1_c(sigaction(SIGUSR1, &s, NULL), "(MasterWorker) sigaction", mt_clean);
+	ec_meno1_c(sigaction(SIGPIPE, &s, NULL), "(MasterWorker) sigaction", mt_clean); 
+	ec_meno1_c(sigaction(SIGCHLD, &s, NULL), "(MasterWorker) sigaction", mt_clean); //ignorato di default
 
 	///////////////// PROC. COLLECTOR /////////////////
 	pid_t pid = fork();
@@ -80,7 +80,7 @@ void MasterWorker()
 	        sizet_buf = (size_t*)malloc(sizeof(size_t));
 		
 		///////////////// SEGNALI /////////////////
-		//gestori segnali permanenti: signal handler
+		//installazione handler permanenti
 		struct sigaction s1;
 		memset(&s1, 0, sizeof(struct sigaction));
 		s1.sa_handler = handler_sigint;
@@ -116,7 +116,7 @@ void MasterWorker()
 		s7.sa_handler = handler_sigchld;
 		ec_meno1_c(sigaction(SIGCHLD, &s7, NULL), "(MasterWorker) sigaction", mt_clean);
 
-		//azzera la maschera
+		//resetta la maschera: segnali attivi
 		if (sigemptyset(&set) != 0){
 			LOG_ERR(errno, "(MasterWorker) sigemptyset");
 			goto mt_clean;
@@ -168,7 +168,7 @@ void MasterWorker()
 			//caso 
 			if (!closing){
 				if (q_curr_capacity < q_len && rem_files > 0){
-                                        if (delay_swicth)
+                              if (delay_swicth)
 						if (msleep(ms_delay) < 0){
 							LOG_ERR(errno, "(MasterWorker) msleep");
 						}
