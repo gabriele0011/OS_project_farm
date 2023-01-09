@@ -105,10 +105,13 @@ else
 fi
 
 
-# verifica con invio del segnale SIGUSR1 -> stampa dei risultati ordinati ottenuti fino ad allora
-./farm -n 1 -d testdir -q 1 file* -t 200 2>&1 > /dev/null
-sleep 1
-pkill -SIGUSR1 farm
+# esecuzione rallentata con invio del segnale SIGURS1 dopo due secondi e SIGTERM dopo altri due secondi.
+./farm -n 1 -d testdir -q 1 -t 200 file* 2>&1 > /dev/null &
+pid=$!
+sleep 2
+pkill -USR1 farm
+sleep 2
+pkill farm
 wait $pid
 if [[ $? != 0 ]]; then
     echo "test6 failed"
