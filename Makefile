@@ -25,12 +25,6 @@ test				:
 					make farm
 					chmod +x script/test.sh
 					script/test.sh
-test3				:
-					make generafile
-					make farm
-					chmod +x script/test3.sh
-					script/test3.sh
-
 
 clean				:
 					-rm farm
