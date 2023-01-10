@@ -180,7 +180,7 @@ void collector()
 			*sizet_buf = 0;
 			write_n(fd_skt, (void*)sizet_buf, sizeof(size_t));
 
-			//riceve: lung. str
+			//riceve: ultimo elemento
 			size_t last_elem;
 			read_n(fd_skt, (void*)sizet_buf, sizeof(size_t));
 			last_elem = *sizet_buf; //cast?
@@ -194,18 +194,25 @@ void collector()
 			arr[count].res = result;
 			count++;
 			rem_files--;		
-			//printf("(collector) file_rimasti=%d\n", rem_files); //DEBUG
+			//printf("(collector) file_rimasti=%d & closure=%d & last_elem=%d \n", rem_files, closure, last_elem); //DEBUG
 			if (str) free(str);
-			if (closure && last_elem) break;
+			if (last_elem){
+				printf("collector acquisito ultimo risultato, break");
+				mutex_unlock(&c_mtx, "(collector) lock");
+			 	break;
+			}
 		}
-	    	//chisura
+		/*
+	    	//IMPLEMENTAZINE FUTURA chisura immediata con segnale apposito
 		if (op == CLOSE){ 
-		        //sprintf("(collector) RICEVUTO SEGNALE DI CHIUSURA\n");
+		        printf("(collector) RICEVUTO SEGNALE DI CHIUSURA\n");
 			closure = 1;
 		}
+		*/
 		mutex_unlock(&c_mtx, "(collector) lock");
 	}
-	//printf("(collector) chiusura in corso...\n"); //DEBUG
+
+	printf("(collector) chiusura in corso...\n"); //DEBUG
 	//OUTPUT
 	//calcola dim finale array di output
 	size_t final_index;
@@ -224,7 +231,7 @@ void collector()
 	if (files_list) dealloc_list(&files_list);
 	if (long_buf) free(long_buf);
 	if (sizet_buf) free(sizet_buf);
-	//printf("(collector) chiusura normale\n"); //DEBUG
+	printf("(collector) chiusura normale\n"); //DEBUG
 	exit(EXIT_SUCCESS);
 
 	//chiusura errore
@@ -234,6 +241,6 @@ void collector()
 	if (long_buf) free(long_buf);
 	if (files_list) dealloc_list(&files_list);
 	if (sizet_buf) free(sizet_buf);
-	//printf("(collector) chiusura errore\n"); //DEBUG
+	printf("(collector) chiusura errore\n"); //DEBUG
 	exit(EXIT_FAILURE);
 }

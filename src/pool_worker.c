@@ -127,12 +127,12 @@ void* thread_start(void *arg)
 			}
 		}
 		q_curr_capacity--;
+		if (closing && q_curr_capacity == 0) is_last_elem = 1;
 		mutex_unlock(&mtx, "(pool_worker) unlock");
 		
 		//uscita 
 		//if (closing == 1 && buf == NULL) break;
 		if (child_term ) break;
-		if (closing && q_curr_capacity == 0) is_last_elem = 1;
 		
 		//funzione che opera sul file
 		thread_proc(buf);
