@@ -122,7 +122,7 @@ void collector()
 	int rem_files = tot_files;
 	int count = 0;
 	size_t op;
-	int closure = 0;
+	//int closure = 0;
 
 	while (rem_files != 0){
 	        
@@ -212,7 +212,7 @@ void collector()
 		mutex_unlock(&c_mtx, "(collector) lock");
 	}
 
-	printf("(collector) chiusura in corso...\n"); //DEBUG
+	//printf("(collector) chiusura in corso...\n"); //DEBUG
 	//OUTPUT
 	//calcola dim finale array di output
 	size_t final_index;
@@ -231,7 +231,7 @@ void collector()
 	if (files_list) dealloc_list(&files_list);
 	if (long_buf) free(long_buf);
 	if (sizet_buf) free(sizet_buf);
-	printf("(collector) chiusura normale\n"); //DEBUG
+	//printf("(collector) chiusura normale\n"); //DEBUG
 	exit(EXIT_SUCCESS);
 
 	//chiusura errore
@@ -241,6 +241,6 @@ void collector()
 	if (long_buf) free(long_buf);
 	if (files_list) dealloc_list(&files_list);
 	if (sizet_buf) free(sizet_buf);
-	printf("(collector) chiusura errore\n"); //DEBUG
+	//printf("(collector) chiusura errore\n"); //DEBUG
 	exit(EXIT_FAILURE);
 }

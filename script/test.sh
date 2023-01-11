@@ -105,7 +105,7 @@ else
 fi
 
 
-# esecuzione rallentata con invio del segnale SIGURS1 dopo due secondi e SIGTERM dopo altri due secondi.
+# esecuzione rallentata con invio del segnale SIGURS1 dopo due secondi e SIGTERM dopo altri due secondi per terminare
 ./farm -n 1 -d testdir -q 1 -t 200 file* 2>&1 > /dev/null &
 pid=$!
 sleep 2

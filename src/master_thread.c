@@ -215,7 +215,7 @@ void MasterWorker()
 			*/
 		}
 		//////////////// TERMINAZIONE /////////////////
-		printf("(MasterWorker) chiurura in corso...\n child_term=%d - closing=%d\n", child_term, closing); //DEBUG
+		//printf("(MasterWorker) chiurura in corso...\n child_term=%d - closing=%d\n", child_term, closing); //DEBUG
 		int status;
 		//attesa terminazione proc. collector
 		if (waitpid(pid, &status, 0) == -1){
@@ -223,7 +223,7 @@ void MasterWorker()
 			exit(EXIT_FAILURE);
 		}
 		
-		if (WIFEXITED(status)) printf("exited, status=%d\n", WEXITSTATUS(status)); //DEBUG;	
+		//if (WIFEXITED(status)) printf("exited, status=%d\n", WEXITSTATUS(status)); //DEBUG;	
 		
 		//broadcast per threads
 		mutex_lock(&mtx, "(MasterWorker) lock");
@@ -232,7 +232,7 @@ void MasterWorker()
 			exit(EXIT_FAILURE);
 		}
 		mutex_unlock(&mtx, "(MasterWorker) unlock");
-		printf("(MasterWorker) broadcast ok\n"); //DEBUG	
+		//printf("(MasterWorker) broadcast ok\n"); //DEBUG	
 
 		//join threads
 		int i;
@@ -253,7 +253,7 @@ void MasterWorker()
 		if (thread_workers_arr) free(thread_workers_arr);
 		if (files_list) dealloc_list(&files_list);
 		if (conc_queue) dealloc_queue(&conc_queue);
-            	printf(" (MasterWorker) normal closing\n"); //DEBUG
+            	//printf(" (MasterWorker) normal closing\n"); //DEBUG
 		exit(EXIT_SUCCESS);
 
 		//chiususa in caso di errore
@@ -266,7 +266,7 @@ void MasterWorker()
 		if (thread_workers_arr) free(thread_workers_arr);
 		if (files_list) dealloc_list(&files_list);
 		if (conc_queue) dealloc_queue(&conc_queue);
-            	printf("(MasterWorker) error closing\n"); //DEBUG
+            	//printf("(MasterWorker) error closing\n"); //DEBUG
 		exit(EXIT_FAILURE);
           }
 }	
